@@ -1,0 +1,13 @@
+[package]
+name = "path_tracer"
+version = "0.1.0-dev"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1.23.1", features = ["derive"] }
+imgui = { version = "0.12.0", features = ["docking"] }
+imgui-wgpu = "0.25.0"
+imgui-winit-support = "0.13.0"
+pollster = "0.4.0"
+wgpu = "25.0.2"
+winit = "0.30.11"

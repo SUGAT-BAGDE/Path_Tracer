@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use glam::Vec2;
 use imgui::{TextureId};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
@@ -7,12 +8,14 @@ use winit::application::ApplicationHandler;
 use winit::event::{Event, WindowEvent};
 use wgpu::wgt::TextureViewDescriptor;
 
+use crate::ray_tracer::renderer::RayTracer;
 use crate::ui::app_window::AppWindow;
 use crate::ui::utils::create_texture_from_pixels;
 
 #[derive(Default)]
 pub struct App {
-    window: Option<AppWindow>
+    window: Option<AppWindow>,
+    viewport_renderer : RayTracer
 }
 
 impl ApplicationHandler for App {
@@ -40,7 +43,7 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::RedrawRequested => {
-                let delta_s = imgui.last_frame.elapsed();
+                // let delta_s = imgui.last_frame.elapsed();
                 let now = Instant::now();
                 
                 imgui.context
@@ -65,46 +68,62 @@ impl ApplicationHandler for App {
                 let mut frame_id : Option<TextureId> = None ;
                 
                 // Lets create a window
+
                 {
                     // write docking mechanism
                     ui.dockspace_over_main_viewport();
 
-                    let imgui_window = ui.window("This is my Window");
-                    imgui_window.size([300.0, 200.0], imgui::Condition::FirstUseEver)
-                        .position([200.0, 400.0], imgui::Condition::FirstUseEver)
-                        .build(|| {
-                            ui.text(format!("delta_s : {delta_s:?}"));
-                            ui.button("Render").then(||{
-                                println!("Clicked Render!!");
-                            });
-                        });
+                    let mut viewport_size : [f32; 2] = [0.0, 0.0];
 
-                    let style_guard = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0, 0.0]));
-
+                    let style_guard = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0, 0.0])); 
                     let imgui_window = ui.window("Viewport");
                     imgui_window
-                        .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-                        .build(|| {
-                            let size = ui.content_region_avail();
-                            let width = size[0] as u32;
-                            let height = size[1] as u32;
+                    .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+                    .position([0.0, 0.0], imgui::Condition::FirstUseEver)
+                    .build(|| {
+                        viewport_size = ui.content_region_avail();
+                        let width = viewport_size[0] as u32;
+                        let height = viewport_size[1] as u32;
+                        
+                        self.viewport_renderer.prepare_pixels(width, height);
 
-                            let magenta = 0xFF464646_u32; // ARGB or BGRA black with full alpha
-                            let pixels = vec![magenta; (width * height) as usize];
+                        let [c_w, c_h] = self.viewport_renderer.get_current_size();
 
-                            let texture_id = create_texture_from_pixels(pixels.as_slice(), width, height, &window.device, &window.queue, &mut imgui.renderer);
+                        let texture_id = create_texture_from_pixels(
+                            self.viewport_renderer.get_output(), 
+                            self.viewport_renderer.get_current_size(),
+                            &window.device, 
+                            &window.queue, 
+                            &mut imgui.renderer);
 
-                            imgui::Image::new(
-                                texture_id.clone(), 
-                                size
-                            )
-                            .build(&ui);
+                        imgui::Image::new(
+                            texture_id.clone(), 
+                            [c_w as f32, c_h as f32]
+                        )
+                        .uv0(Vec2::new(0.0, 1.0))
+                        .uv1(Vec2::new(1.0, 0.0))
+                        .build(&ui);
                             
-                            frame_id = Some(texture_id);
-                        });
+                        frame_id = Some(texture_id);
+                    });
                     
-                    drop(style_guard);                    
+                    drop(style_guard);   
+
+                    let imgui_window = ui.window("Settings");
+                    imgui_window.size([300.0, 200.0], imgui::Condition::FirstUseEver)
+                        .position([500.0, 200.0], imgui::Condition::FirstUseEver)
+                        .build(|| {
+                            let duration = self.viewport_renderer.get_last_render_time();
+                            ui.text(format!("Last Render : {duration:?}"));
+                            ui.text(format!("Image : {viewport_size:?}"));
+                            ui.button("Render").then(||{
+                                self.viewport_renderer.render(viewport_size[0] as u32, viewport_size[1] as u32);
+                            });
+                            
+                        });                 
                 }
+
+                
 
                 let mut encoder = window.device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {label : None});

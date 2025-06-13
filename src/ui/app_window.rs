@@ -74,9 +74,10 @@ impl AppWindow {
     fn setup_imgui(&mut self)
     {
         let mut context = imgui::Context::create();
+         
+        context.io_mut().config_flags |= imgui::ConfigFlags::DOCKING_ENABLE;
         
         context.set_ini_filename(None);
-        context.io_mut().config_flags |= imgui::ConfigFlags::DOCKING_ENABLE;
         
         let mut platform = imgui_winit_support::WinitPlatform::new(&mut context);
         platform.attach_window(

@@ -1,3 +1,7 @@
 /target
 **/*.rs.bk
 Cargo.lock
+
+# Ignore the 'setting' directory where INI files are stored
+settings/
+

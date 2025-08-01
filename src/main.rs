@@ -1,9 +1,8 @@
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::event_loop::{ControlFlow, EventLoop};
 
 use path_tracer::app::App;
 
 fn main() {
-
     let event_loop = EventLoop::new().unwrap();
 
     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
@@ -17,5 +16,4 @@ fn main() {
 
     let mut app = App::default();
     let _ = event_loop.run_app(&mut app);
-
 }

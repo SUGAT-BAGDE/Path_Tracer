@@ -12,13 +12,13 @@ pub struct RayTracer {
     width: u32,
     height: u32,
     pixels: Vec<u32>,
-    camera: Camera,
+    pub camera: Camera,
     last_render_time: Duration,
 }
 
 impl RayTracer {
     pub fn new() -> Self {
-        Self {
+        let mut renderer = Self {
             width: 0,
             height: 0,
             pixels: vec![],
@@ -30,7 +30,11 @@ impl RayTracer {
                 55.0,
                 [0,0]
             )
-        }
+        };
+
+        renderer.init_scene();
+
+        return renderer;
     }
 
     pub fn get_current_size(&self) -> [u32; 2] {
@@ -58,8 +62,6 @@ impl RayTracer {
     }
 
     pub fn render(&mut self, width: u32, height: u32) {
-        self.init_scene();
-
         let render_start_time = Instant::now();
 
         self.set_size([width, height]);
@@ -115,7 +117,14 @@ impl RayTracer {
         let sqrt_d = discriminant.sqrt();
         let t0 = (-b + sqrt_d) / (2.0 * a);
         let t1 = (-b - sqrt_d) / (2.0 * a);
-        let t = t0.min(t1);
+        // let t = t0.min(t1);
+
+        let t = match (t0 > 0.0, t1 > 0.0) {
+            (true, true) => t0.min(t1),   // Both positive: take closer one
+            (true, false) => t0,
+            (false, true) => t1,
+            (false, false) => return Vec4::new(0.0, 0.0, 0.0, 1.0), // Both behind the ray
+        };
 
         let mut normal = ray.origin + t * ray.direction;
 

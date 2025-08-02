@@ -14,9 +14,9 @@ pub struct Camera {
     // cached data
     aspect_ratio : f32,
     local_to_world : Mat4,
-    forward : Vec3,
-    up : Vec3,
-    right : Vec3,
+    pub forward : Vec3,
+    pub up : Vec3,
+    pub right : Vec3,
     
     pub fov : f32, // again radians, optained by focal length and sensor size
 }
@@ -25,8 +25,8 @@ impl Camera {
     pub fn new(
         position : Vec3,
         rotation:Vec3, focal_length: f32, sensor_size : f32, image_size : [u32; 2]
-    ) -> Camera {
-        let mut camera = Camera {
+    ) -> Self {
+        let mut camera = Self {
             position,
             rotation,
             focal_length,
@@ -39,6 +39,16 @@ impl Camera {
         camera.on_update();
 
         return camera;
+    }
+
+    pub fn set_position(&mut self, position : Vec3) {
+        self.position = position;
+        self.on_update();
+    }
+
+    pub fn set_rotation(&mut self, rotation : Vec3) {
+        self.rotation = rotation;
+        self.on_update();
     }
 
     pub fn set_image_resolutions(&mut self, image_resolution : [u32; 2]) {

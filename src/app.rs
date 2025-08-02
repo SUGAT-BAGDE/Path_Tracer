@@ -90,6 +90,62 @@ impl ApplicationHandler for App {
                             let width = viewport_size[0] as u32;
                             let height = viewport_size[1] as u32;
 
+                            if ui.is_window_focused() {
+
+                                let camera = &mut self.viewport_renderer.camera;
+                                let move_speed = 0.25;
+                                let mouse_sensitivity = 0.0005; // radians per pixel
+                                let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
+
+                                let forward = camera.forward;
+                                let up = camera.up;
+                                let right = camera.right;
+
+                                let key_moves = [
+                                    (imgui::Key::W,  forward),
+                                    (imgui::Key::S, -forward),
+                                    (imgui::Key::D,  right),
+                                    (imgui::Key::A, -right),
+                                    (imgui::Key::E,  up),
+                                    (imgui::Key::Q, -up),
+                                ];
+
+                                let mut moved = false;
+                                for (key, dir) in key_moves {
+                                    if ui.is_key_down(key) {
+                                        camera.set_position(camera.position + move_speed * dir);
+                                        moved = true;
+                                    }
+                                }
+
+                                if ui.is_mouse_down(imgui::MouseButton::Right) {
+                                    ui.set_mouse_cursor(None);
+
+                                    let delta = ui.mouse_drag_delta_with_button(imgui::MouseButton::Right);
+                                    if delta != [0.0, 0.0] {
+                                        let mut new_rotation = camera.rotation.clone();
+                                        new_rotation.y -= delta[0] * mouse_sensitivity;
+                                        new_rotation.x -= delta[1] * mouse_sensitivity;
+
+                                        new_rotation.x = new_rotation.x.clamp(-max_pitch, max_pitch);
+
+                                        camera.set_rotation(new_rotation);
+                                        moved = true;
+                                    }
+                                }
+                                else {
+                                    ui.set_mouse_cursor(Some(imgui::MouseCursor::Arrow));
+                                }
+
+
+
+                                if moved {
+                                    self.viewport_renderer
+                                        .render(viewport_size[0] as u32, viewport_size[1] as u32);
+                                }
+
+                            }
+
                             self.viewport_renderer.prepare_pixels(width, height);
 
                             let [c_w, c_h] = self.viewport_renderer.get_current_size();
@@ -124,7 +180,28 @@ impl ApplicationHandler for App {
                                 self.viewport_renderer
                                     .render(viewport_size[0] as u32, viewport_size[1] as u32);
                             });
+
+                            let focal_length = self.viewport_renderer.camera.focal_length;
+                            if imgui::Drag::new("Focal length")
+                                .build(&ui, focal_length) {
+                                self.viewport_renderer.camera.set_focal_length(focal_length);
+                                self.viewport_renderer
+                                    .render(viewport_size[0] as u32, viewport_size[1] as u32);
+                            }
                         });
+
+                    // if ui.is_key_down(imgui::Key::W) {
+                    //     println!("Pressed W");
+                    //     println!("from {} to {}",
+                    //         self.viewport_renderer.camera.position,
+                    //         self.viewport_renderer.camera.position + 0.5 * self.viewport_renderer.camera.forward
+                    //     );
+                    //     self.viewport_renderer.camera.set_position(
+                    //         self.viewport_renderer.camera.position + 0.5 * self.viewport_renderer.camera.forward
+                    //     );
+                    //     self.viewport_renderer
+                    //         .render(viewport_size[0] as u32, viewport_size[1] as u32);
+                    // }
                 }
 
                 let mut encoder = window

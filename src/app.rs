@@ -1,24 +1,214 @@
 use std::time::Instant;
 
 use glam::Vec2;
-
-use imgui::TextureId;
+use imgui::{TextureId};
 use winit::application::ApplicationHandler;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::WindowId;
+use winit::window::{WindowId};
 
 use wgpu::wgt::TextureViewDescriptor;
 
-use crate::ray_tracer::renderer::RayTracer;
-
 use crate::ui::app_window::AppWindow;
+use crate::ui::Viewport;
 use crate::ui::utils::create_texture_from_pixels;
 
 #[derive(Default)]
 pub struct App {
     window: Option<AppWindow>,
-    viewport_renderer: RayTracer,
+    // viewport_renderer: RayTracer,
+
+    viewport : Viewport
+}
+
+impl App {
+    fn handle_redraw_request(&mut self) 
+    {
+        let window = self.window.as_mut().unwrap();
+        let imgui = window.imgui.as_mut().unwrap();
+        // let delta_s = imgui.last_frame.elapsed();
+        let now = Instant::now();
+
+        imgui
+            .context
+            .io_mut()
+            .update_delta_time(now - imgui.last_frame);
+
+        imgui.last_frame = now;
+
+        let frame = match window.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(e) => {
+                eprintln!("dropped frame: {e:?}");
+                return;
+            }
+        };
+
+        imgui
+            .platform
+            .prepare_frame(imgui.context.io_mut(), &window.window)
+            .expect("Failed to prepare frame");
+
+        let ui = imgui.context.frame();
+        let mut frame_id: Option<TextureId> = None;
+
+        // create windows
+        {
+            // write docking mechanism
+            ui.dockspace_over_main_viewport();
+
+            let mut viewport_size: [f32; 2] = [0.0, 0.0];
+
+            let style_guard = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0, 0.0]));
+
+            ui.window("Viewport")
+                .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+                .position([0.0, 0.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    viewport_size = ui.content_region_avail();
+                    let width = viewport_size[0] as u32;
+                    let height = viewport_size[1] as u32;
+
+                    if ui.is_window_focused() {
+
+                        // let camera = self.viewport_renderer.active_camera;
+                        self.viewport.handle_input(
+                            &ui,
+                            width,
+                            height,
+                        );
+                    }
+
+                    self.viewport.renderer
+                        .prepare_pixels(&self.viewport.scene, width, height);
+
+                    let [c_w, c_h] = self.viewport.renderer.get_current_size();
+
+                    let texture_id = create_texture_from_pixels(
+                        self.viewport.renderer.get_output(),
+                        self.viewport.renderer.get_current_size(),
+                        &window.device,
+                        &window.queue,
+                        &mut imgui.renderer,
+                    );
+
+                    imgui::Image::new(texture_id.clone(), [c_w as f32, c_h as f32])
+                        .uv0(Vec2::new(0.0, 1.0))
+                        .uv1(Vec2::new(1.0, 0.0))
+                        .build(&ui);
+
+                    frame_id = Some(texture_id);
+                });
+
+            drop(style_guard);
+
+            ui.window("Settings")
+                .size([300.0, 200.0], imgui::Condition::FirstUseEver)
+                .position([500.0, 200.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    let duration = self.viewport.renderer.get_last_render_time();
+                    ui.text(format!("Last Render : {duration:?}"));
+                    ui.text(format!("Image : {viewport_size:?}"));
+                    ui.button("Render").then(|| {
+                        self.viewport.renderer
+                            .render(&self.viewport.scene,
+                                viewport_size[0] as u32,
+                                viewport_size[1] as u32);
+                    });
+
+                    let mut focal_length = self.viewport.renderer.active_camera.focal_length;
+                    if imgui::Drag::new("Focal Length")
+                        .build(&ui, &mut focal_length) {
+                        self.viewport.camera.set_focal_length(focal_length);
+                        self.viewport.renderer.render(&self.viewport.scene,
+                            viewport_size[0] as u32,
+                            viewport_size[1] as u32);
+                    }
+
+                    let mut sensor_size = self.viewport.renderer.active_camera.sensor_size;
+                    if imgui::Drag::new("Sensor Size")
+                        .build(&ui, &mut sensor_size) {
+                        self.viewport.camera.sensor_size = sensor_size;
+                        self.viewport.renderer.render(&self.viewport.scene,
+                            viewport_size[0] as u32,
+                            viewport_size[1] as u32);
+                    }
+                });
+
+            ui.window("Scene Settings")
+                .size([300.0, 400.0], imgui::Condition::FirstUseEver)
+                .position([200.0, 500.0], imgui::Condition::FirstUseEver)
+                .build(||{
+                    for i in 0..self.viewport.scene.spheres.len() {
+                        let _id = ui.push_id_usize(i);
+
+                        ui.input_float3("Position", &mut self.viewport.scene.spheres[i].position)
+                            .build().then(|| {
+                                self.viewport.renderer.render(&self.viewport.scene,
+                                    viewport_size[0] as u32,
+                                    viewport_size[1] as u32);
+                            });
+                        ui.input_float("Radius", &mut self.viewport.scene.spheres[i].radius)
+                            .build().then(|| {
+                                self.viewport.renderer.render(&self.viewport.scene,
+                                    viewport_size[0] as u32,
+                                    viewport_size[1] as u32);
+                            });
+                        ui.color_edit3("Albedo", &mut self.viewport.scene.spheres[i].albedo)
+                            .then(|| {
+                                self.viewport.renderer.render(&self.viewport.scene,
+                                    viewport_size[0] as u32,
+                                    viewport_size[1] as u32);
+                            });
+                    }
+                });
+
+        }
+
+        let mut encoder = window
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        if imgui.last_cursor != ui.mouse_cursor() {
+            imgui.last_cursor = ui.mouse_cursor();
+            imgui.platform.prepare_render(&ui, &window.window);
+        }
+
+        let view = frame.texture.create_view(&TextureViewDescriptor::default());
+
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(imgui.clear_color),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        imgui
+            .renderer
+            .render(
+                imgui.context.render(),
+                &window.queue,
+                &window.device,
+                &mut rpass,
+            )
+            .expect("Rendering Failed!...");
+
+        drop(rpass);
+
+        imgui.renderer.textures.remove(frame_id.unwrap());
+
+        window.queue.submit(Some(encoder.finish()));
+        frame.present();
+    }
+
 }
 
 impl ApplicationHandler for App {
@@ -32,11 +222,10 @@ impl ApplicationHandler for App {
         window_id: WindowId,
         event: winit::event::WindowEvent,
     ) {
-        let window = self.window.as_mut().unwrap();
-        let imgui = window.imgui.as_mut().unwrap();
 
         match event {
             WindowEvent::Resized(size) => {
+                let window = self.window.as_mut().unwrap();
                 window.surface_desc.width = size.width;
                 window.surface_desc.height = size.height;
 
@@ -45,133 +234,12 @@ impl ApplicationHandler for App {
                     .configure(&window.device, &window.surface_desc);
             }
             WindowEvent::CloseRequested => event_loop.exit(),
-
-            WindowEvent::RedrawRequested => {
-                // let delta_s = imgui.last_frame.elapsed();
-                let now = Instant::now();
-
-                imgui
-                    .context
-                    .io_mut()
-                    .update_delta_time(now - imgui.last_frame);
-
-                imgui.last_frame = now;
-
-                let frame = match window.surface.get_current_texture() {
-                    Ok(frame) => frame,
-                    Err(e) => {
-                        eprintln!("dropped frame: {e:?}");
-                        return;
-                    }
-                };
-
-                imgui
-                    .platform
-                    .prepare_frame(imgui.context.io_mut(), &window.window)
-                    .expect("Failed to prepare frame");
-
-                let ui = imgui.context.frame();
-                let mut frame_id: Option<TextureId> = None;
-
-                // Lets create a window
-                {
-                    // write docking mechanism
-                    ui.dockspace_over_main_viewport();
-
-                    let mut viewport_size: [f32; 2] = [0.0, 0.0];
-
-                    let style_guard = ui.push_style_var(imgui::StyleVar::WindowPadding([0.0, 0.0]));
-                    let imgui_window = ui.window("Viewport");
-                    imgui_window
-                        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
-                        .position([0.0, 0.0], imgui::Condition::FirstUseEver)
-                        .build(|| {
-                            viewport_size = ui.content_region_avail();
-                            let width = viewport_size[0] as u32;
-                            let height = viewport_size[1] as u32;
-
-                            self.viewport_renderer.prepare_pixels(width, height);
-
-                            let [c_w, c_h] = self.viewport_renderer.get_current_size();
-
-                            let texture_id = create_texture_from_pixels(
-                                self.viewport_renderer.get_output(),
-                                self.viewport_renderer.get_current_size(),
-                                &window.device,
-                                &window.queue,
-                                &mut imgui.renderer,
-                            );
-
-                            imgui::Image::new(texture_id.clone(), [c_w as f32, c_h as f32])
-                                .uv0(Vec2::new(0.0, 1.0))
-                                .uv1(Vec2::new(1.0, 0.0))
-                                .build(&ui);
-
-                            frame_id = Some(texture_id);
-                        });
-
-                    drop(style_guard);
-
-                    let imgui_window = ui.window("Settings");
-                    imgui_window
-                        .size([300.0, 200.0], imgui::Condition::FirstUseEver)
-                        .position([500.0, 200.0], imgui::Condition::FirstUseEver)
-                        .build(|| {
-                            let duration = self.viewport_renderer.get_last_render_time();
-                            ui.text(format!("Last Render : {duration:?}"));
-                            ui.text(format!("Image : {viewport_size:?}"));
-                            ui.button("Render").then(|| {
-                                self.viewport_renderer
-                                    .render(viewport_size[0] as u32, viewport_size[1] as u32);
-                            });
-                        });
-                }
-
-                let mut encoder = window
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-                if imgui.last_cursor != ui.mouse_cursor() {
-                    imgui.last_cursor = ui.mouse_cursor();
-                    imgui.platform.prepare_render(&ui, &window.window);
-                }
-
-                let view = frame.texture.create_view(&TextureViewDescriptor::default());
-
-                let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(imgui.clear_color),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-
-                imgui
-                    .renderer
-                    .render(
-                        imgui.context.render(),
-                        &window.queue,
-                        &window.device,
-                        &mut rpass,
-                    )
-                    .expect("Rendering Failed!...");
-
-                drop(rpass);
-
-                imgui.renderer.textures.remove(frame_id.unwrap());
-
-                window.queue.submit(Some(encoder.finish()));
-                frame.present();
-            }
+            WindowEvent::RedrawRequested => self.handle_redraw_request(),
             _ => (),
         }
+
+        let window = self.window.as_mut().unwrap();
+        let imgui = window.imgui.as_mut().unwrap();
 
         imgui.platform.handle_event::<()>(
             imgui.context.io_mut(),
@@ -213,7 +281,7 @@ impl ApplicationHandler for App {
         imgui.platform.handle_event::<()>(
             imgui.context.io_mut(),
             &window.window,
-            &Event::AboutToWait,
+            &Event::AboutToWait
         );
     }
 }

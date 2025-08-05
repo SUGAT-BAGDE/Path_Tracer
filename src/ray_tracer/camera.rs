@@ -14,9 +14,9 @@ pub struct Camera {
     // cached data
     aspect_ratio : f32,
     local_to_world : Mat4,
-    forward : Vec3,
-    up : Vec3,
-    right : Vec3,
+    pub forward : Vec3,
+    pub up : Vec3,
+    pub right : Vec3,
     
     pub fov : f32, // again radians, optained by focal length and sensor size
 }
@@ -25,8 +25,8 @@ impl Camera {
     pub fn new(
         position : Vec3,
         rotation:Vec3, focal_length: f32, sensor_size : f32, image_size : [u32; 2]
-    ) -> Camera {
-        let mut camera = Camera {
+    ) -> Self {
+        let mut camera = Self {
             position,
             rotation,
             focal_length,
@@ -39,6 +39,21 @@ impl Camera {
         camera.on_update();
 
         return camera;
+    }
+
+    pub fn set_focal_length(&mut self, focal_length: f32) {
+        self.focal_length = focal_length;
+        self.compute_fov();
+    }
+
+    pub fn set_position(&mut self, position : Vec3) {
+        self.position = position;
+        self.on_update();
+    }
+
+    pub fn set_rotation(&mut self, rotation : Vec3) {
+        self.rotation = rotation;
+        self.on_update();
     }
 
     pub fn set_image_resolutions(&mut self, image_resolution : [u32; 2]) {
@@ -79,18 +94,23 @@ impl Camera {
 
     /// this function generated ray directly from world space of camera for performance reason
     pub fn get_ray(&self, x : u32, y : u32) -> Ray {
-        let [width, height] = self.image_size;
+        let &[width, height] = &self.image_size;
 
-        let mut vec = Vec2::new(((x as f32) + 0.5) / (width as f32), ((y as f32) + 0.5) / (height as f32));
+        let mut vec = Vec2::new(
+            (x as f32 + 0.5) / width as f32,
+            (y as f32 + 0.5) / height as f32
+        );
+
         vec = (vec * 2.0 - 1.0) * (self.fov/2.0).tan();
-        // vec = Vec2::new(1.0, 1.0) - vec * 2.0;
         vec.x *= self.aspect_ratio;
 
         let ray_direction = Vec3::new(vec.x, vec.y, -1.0);
 
         Ray { 
             origin: self.position, 
-            direction: self.local_to_world.transform_vector3(ray_direction)
+            direction: self.local_to_world
+                .transform_vector3(ray_direction)
+                .normalize()
         }
     }
 }

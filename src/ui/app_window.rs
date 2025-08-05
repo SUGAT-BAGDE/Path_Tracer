@@ -121,6 +121,7 @@ impl AppWindow {
             last_cursor,
             last_frame,
             clear_color,
+            current_frame : None
         });
     }
 

@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use glam::Vec2;
+use insploray::Vec2;
 use imgui::{TextureId};
 use winit::application::ApplicationHandler;
 use winit::event::{Event, WindowEvent};
@@ -73,7 +73,7 @@ impl App {
 
                         // let camera = self.viewport_renderer.active_camera;
                         self.viewport.handle_input(
-                            &ui,
+                            ui,
                             width,
                             height,
                         );
@@ -92,10 +92,10 @@ impl App {
                         &mut imgui.renderer,
                     );
 
-                    imgui::Image::new(texture_id.clone(), [c_w as f32, c_h as f32])
+                    imgui::Image::new(texture_id, [c_w as f32, c_h as f32])
                         .uv0(Vec2::new(0.0, 1.0))
                         .uv1(Vec2::new(1.0, 0.0))
-                        .build(&ui);
+                        .build(ui);
 
                     frame_id = Some(texture_id);
                 });
@@ -118,8 +118,8 @@ impl App {
 
                     let mut focal_length = self.viewport.renderer.active_camera.focal_length;
                     if imgui::Drag::new("Focal Length")
-                        .build(&ui, &mut focal_length) {
-                        self.viewport.camera.set_focal_length(focal_length);
+                        .build(ui, &mut focal_length) && focal_length > 0.0  {
+                        self.viewport.renderer.active_camera.set_focal_length(focal_length);
                         self.viewport.renderer.render(&self.viewport.scene,
                             viewport_size[0] as u32,
                             viewport_size[1] as u32);
@@ -127,11 +127,11 @@ impl App {
 
                     let mut sensor_size = self.viewport.renderer.active_camera.sensor_size;
                     if imgui::Drag::new("Sensor Size")
-                        .build(&ui, &mut sensor_size) {
-                        self.viewport.camera.sensor_size = sensor_size;
-                        self.viewport.renderer.render(&self.viewport.scene,
-                            viewport_size[0] as u32,
-                            viewport_size[1] as u32);
+                        .build(ui, &mut sensor_size) && sensor_size > 0.0 {
+                            self.viewport.renderer.active_camera.set_sensor_size(sensor_size);
+                            self.viewport.renderer.render(&self.viewport.scene,
+                                viewport_size[0] as u32,
+                                viewport_size[1] as u32);
                     }
                 });
 
@@ -171,7 +171,7 @@ impl App {
 
         if imgui.last_cursor != ui.mouse_cursor() {
             imgui.last_cursor = ui.mouse_cursor();
-            imgui.platform.prepare_render(&ui, &window.window);
+            imgui.platform.prepare_render(ui, &window.window);
         }
 
         let view = frame.texture.create_view(&TextureViewDescriptor::default());

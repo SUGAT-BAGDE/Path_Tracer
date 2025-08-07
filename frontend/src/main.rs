@@ -1,6 +1,6 @@
 use winit::event_loop::{ControlFlow, EventLoop};
 
-use path_tracer::app::App;
+use frontend::app::App;
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();

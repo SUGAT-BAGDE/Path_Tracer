@@ -1,13 +1,14 @@
 use imgui::Ui;
 
-use crate::ray_tracer::renderer::RayTracer;
-use crate::ray_tracer::scene::Scene;
-use crate::ray_tracer::camera::Camera;
+use insploray::renderer::RayTracer;
+use insploray::scene::Scene;
+use insploray::camera::Camera;
+use insploray::camera::PinholeCamera;
 
 pub struct Viewport {
     pub renderer : RayTracer,
     pub scene : Scene,
-    pub camera : Camera
+    pub camera : PinholeCamera
 }
 
 impl Viewport {
@@ -51,7 +52,7 @@ impl Viewport {
 
             let delta = ui.mouse_drag_delta_with_button(imgui::MouseButton::Right);
             if delta != [0.0, 0.0] {
-                let mut new_rotation = self.renderer.active_camera.rotation.clone();
+                let mut new_rotation = self.renderer.active_camera.rotation;
                 new_rotation.y -= delta[0] * mouse_sensitivity;
                 new_rotation.x -= delta[1] * mouse_sensitivity;
 
@@ -82,7 +83,7 @@ impl Viewport {
 impl Default for Viewport {
     fn default() -> Self {
         Self {
-            camera : Camera::default(),
+            camera : PinholeCamera::default(),
             renderer : RayTracer::default(),
             scene: Scene::get_example_scene()
         }

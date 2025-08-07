@@ -1,9 +1,10 @@
 use glam::{Mat4, Vec2, Vec3, Vec4Swizzles};
 
-use crate::ray_tracer::{Ray};
+use crate::{Ray};
+pub use crate::camera::Camera;
 
 #[derive(Debug, Default)]
-pub struct Camera {
+pub struct PinholeCamera {
     pub position : Vec3,
     pub rotation : Vec3, // [x, y, z] Eular rotation in radians
 
@@ -21,7 +22,7 @@ pub struct Camera {
     pub fov : f32, // again radians, optained by focal length and sensor size
 }
 
-impl Camera {
+impl PinholeCamera {
     pub fn new(
         position : Vec3,
         rotation:Vec3, focal_length: f32, sensor_size : f32, image_size : [u32; 2]
@@ -38,7 +39,7 @@ impl Camera {
 
         camera.on_update();
 
-        return camera;
+        camera
     }
 
     pub fn set_focal_length(&mut self, focal_length: f32) {
@@ -46,19 +47,9 @@ impl Camera {
         self.compute_fov();
     }
 
-    pub fn set_position(&mut self, position : Vec3) {
-        self.position = position;
-        self.on_update();
-    }
-
-    pub fn set_rotation(&mut self, rotation : Vec3) {
-        self.rotation = rotation;
-        self.on_update();
-    }
-
-    pub fn set_image_resolutions(&mut self, image_resolution : [u32; 2]) {
-        self.image_size = image_resolution;
-        self.aspect_ratio = self.image_size[0] as f32 / self.image_size[1] as f32;
+    pub fn set_sensor_size(&mut self, sensor_size: f32) {
+        self.sensor_size = sensor_size;
+        self.compute_fov();
     }
 
     #[inline]
@@ -66,15 +57,6 @@ impl Camera {
         self.fov = 2.0 * ((self.sensor_size / (2.0 * self.focal_length)).atan());
     }
 
-    fn compute_transformation_matrix(&mut self) {
-        let rotation = Mat4::from_rotation_z(self.rotation.z)
-            * Mat4::from_rotation_y(self.rotation.y) 
-            * Mat4::from_rotation_x(self.rotation.x);
-
-        let translation = Mat4::from_translation(self.position);
-
-        self.local_to_world = translation * rotation;
-    }
 
     fn compute_camera_directions(&mut self) {
         self.up = self.local_to_world.y_axis.xyz();
@@ -83,17 +65,14 @@ impl Camera {
     }
     
     pub fn get_camera_to_world_matrix(&self) -> Mat4 {
-        return self.local_to_world;
+        self.local_to_world
     }
 
-    pub fn on_update(&mut self) {
-        self.compute_fov();
-        self.compute_transformation_matrix();
-        self.compute_camera_directions();
-    }
+}
 
+impl Camera for PinholeCamera {
     /// this function generated ray directly from world space of camera for performance reason
-    pub fn get_ray(&self, x : u32, y : u32) -> Ray {
+    fn get_ray(&self, x : u32, y : u32) -> Ray {
         let &[width, height] = &self.image_size;
 
         let mut vec = Vec2::new(
@@ -113,8 +92,39 @@ impl Camera {
                 .normalize()
         }
     }
-}
+    
+    fn set_position(&mut self, position : Vec3) {
+        self.position = position;
+        self.on_update();
+    }
 
+    fn set_rotation(&mut self, rotation : Vec3) {
+        self.rotation = rotation;
+        self.on_update();
+    }
+
+    fn set_image_resolutions(&mut self, image_resolution : [u32; 2]) {
+        self.image_size = image_resolution;
+        self.aspect_ratio = self.image_size[0] as f32 / self.image_size[1] as f32;
+    }
+
+    fn compute_transformation_matrix(&mut self) {
+        let rotation = Mat4::from_rotation_z(self.rotation.z)
+            * Mat4::from_rotation_y(self.rotation.y) 
+            * Mat4::from_rotation_x(self.rotation.x);
+
+        let translation = Mat4::from_translation(self.position);
+
+        self.local_to_world = translation * rotation;
+    }
+
+    fn on_update(&mut self) {
+        self.compute_fov();
+        self.compute_transformation_matrix();
+        self.compute_camera_directions();
+    }
+
+}
 
 #[cfg(test)]
 mod test {
@@ -127,7 +137,7 @@ mod test {
         let focal_length = 35.0;
         let sensor_size = 55.0;
 
-        let camera = Camera::new(
+        let camera = PinholeCamera::new(
             Vec3::ZERO, 
             Vec3::ZERO,
             focal_length, 
@@ -175,7 +185,7 @@ mod test {
         let position = Vec3::new(-2.4027, -2.5716, 3.5259);
         let rotation = Vec3::new(0.1975, -0.7941, -1.9074); // Euler XYZ in radians
 
-        let camera = Camera::new(
+        let camera = PinholeCamera::new(
             position,
             rotation,
             55.0,  // FOV
@@ -199,13 +209,11 @@ mod test {
         );
 
         // Vertex local positions (from Blender)
-        let local_vertices = vec![
-            Vec3::new(-1.2510, 0.5574, 0.6953),
+        let local_vertices = [Vec3::new(-1.2510, 0.5574, 0.6953),
             Vec3::new(-0.3731, -1.2838, 0.5934),
             Vec3::new(0.0941, 1.1836, -0.7080),
             Vec3::new(1.1367, -0.5054, -0.4624),
-            Vec3::new(0.2396, 0.5597, 1.4485),
-        ];
+            Vec3::new(0.2396, 0.5597, 1.4485)];
 
         // For each vertex, transform with both matrices and compare
         for (i, local) in local_vertices.iter().enumerate() {

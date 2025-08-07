@@ -1,4 +1,4 @@
-use core::f32;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use glam::{Vec3, Vec4};
@@ -6,7 +6,7 @@ use glam::{Vec3, Vec4};
 use crate::camera::PinholeCamera;
 use crate::camera::Camera;
 use crate::scene::{Scene, Sphere};
-use crate::{Ray};
+use crate::Ray;
 use crate::utils::convert_to_argb;
 
 pub struct RayTracer {
@@ -15,28 +15,34 @@ pub struct RayTracer {
     frame_buffer : Vec<u32>,
     last_render_time: Duration,
 
-    pub active_camera: PinholeCamera,
+    pub active_camera: Arc<RwLock<dyn Camera>>,
 }
 
 impl RayTracer {
     pub fn new() -> Self {
-        let mut renderer = Self {
-            width: 0,
-            height: 0,
-            frame_buffer: vec![],
-            last_render_time: Duration::from_secs(0),
-            active_camera : PinholeCamera::new(
+        let camera =  PinholeCamera::new(
                 Vec3::ZERO, 
                 Vec3::ZERO,
                 35.0,
                 55.0,
                 [0,0]
-            ),
+            );
+
+        let mut renderer = Self {
+            width: 0,
+            height: 0,
+            frame_buffer: vec![],
+            active_camera : Arc::new(RwLock::new(camera)),
+            last_render_time: Duration::from_secs(0),
         };
 
         renderer.init_scene();
 
         renderer
+    }
+
+    pub fn set_active_camera(&mut self, camera : Arc<RwLock<dyn Camera>>) {
+        self.active_camera = camera;
     }
 
     pub fn get_current_size(&self) -> [u32; 2] {
@@ -54,13 +60,15 @@ impl RayTracer {
     }
 
     fn init_scene(&mut self) {
-        self.active_camera.position = Vec3::new(0.0, 0.0, 2.0);
+        let mut cam = self.active_camera.write().unwrap();
+        (*cam).set_position( Vec3::new(0.0, 0.0, 2.0));
     }
 
     fn set_size(&mut self, size: [u32; 2]) {
         self.width = size[0];
         self.height = size[1];
-        self.active_camera.set_image_resolutions(size);
+        let mut cam = self.active_camera.write().unwrap();
+        (*cam).set_image_resolutions(size);
     }
 
     pub fn render(&mut self, scene: &Scene, width: u32, height: u32) {
@@ -73,8 +81,9 @@ impl RayTracer {
 
         for y in 0..height {
             for x in 0..width {
+                let cam = self.active_camera.read().unwrap();
 
-                let ray = self.active_camera.get_ray(x, y);
+                let ray = (*cam).get_ray(x, y);
 
                 let color = convert_to_argb(
                     &Self::trace_ray(ray, scene)

@@ -1,17 +1,46 @@
+use std::sync::Arc;
+use std::sync::RwLock;
+
 use imgui::Ui;
 
 use insploray::renderer::RayTracer;
 use insploray::scene::Scene;
 use insploray::camera::Camera;
 use insploray::camera::PinholeCamera;
+use insploray::Vec3;
 
 pub struct Viewport {
     pub renderer : RayTracer,
     pub scene : Scene,
-    pub camera : PinholeCamera
+    pub camera : Arc<RwLock<PinholeCamera>>
 }
 
 impl Viewport {
+    pub fn draw_scene_setting_window(&mut self, ui : &Ui, viewport_size: &[f32; 2]) {
+        let mut update = false;
+
+        ui.window("Scene Settings")
+            .size([300.0, 400.0], imgui::Condition::FirstUseEver)
+            .position([200.0, 500.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                for i in 0..self.scene.spheres.len() {
+                    let _id = ui.push_id_usize(i);
+
+                    update |= ui.input_float3("Position", &mut self.scene.spheres[i].position)
+                        .build();
+                    update |= ui.input_float("Radius", &mut self.scene.spheres[i].radius)
+                        .build();
+                    update |= ui.color_edit3("Albedo", &mut self.scene.spheres[i].albedo);
+                }
+            });
+
+        if update {
+            self.renderer.render(&self.scene,
+                viewport_size[0] as u32,
+                viewport_size[1] as u32);
+        }
+        
+    }
 
     pub fn handle_input(
         &mut self,
@@ -24,10 +53,11 @@ impl Viewport {
         let move_speed = 0.25 * delta_time * 30.0;
         let mouse_sensitivity = 0.0005 * delta_time * 30.0; 
         // radians per pixel
+        let camera = self.camera.read().unwrap();
 
-        let forward = self.renderer.active_camera.forward;
-        let up = self.renderer.active_camera.up;
-        let right = self.renderer.active_camera.right;
+        let forward = camera.forward;
+        let up = camera.up;
+        let right = camera.right;
 
         let key_moves = [
             (imgui::Key::W,  forward),
@@ -38,11 +68,18 @@ impl Viewport {
             (imgui::Key::Q, -up),
         ];
 
+        let mut new_rotation = camera.rotation;
+        let mut new_position = camera.position;
+
+        drop(camera);
+
         let mut moved = false;
         for (key, dir) in key_moves {
             if ui.is_key_down(key) {
-                self.renderer.active_camera
-                    .set_position(self.renderer.active_camera.position + move_speed * dir);
+                
+                new_position += move_speed * dir;
+                self.camera.write().unwrap()
+                    .set_position(new_position);
                 moved = true;
             }
         }
@@ -52,13 +89,13 @@ impl Viewport {
 
             let delta = ui.mouse_drag_delta_with_button(imgui::MouseButton::Right);
             if delta != [0.0, 0.0] {
-                let mut new_rotation = self.renderer.active_camera.rotation;
                 new_rotation.y -= delta[0] * mouse_sensitivity;
                 new_rotation.x -= delta[1] * mouse_sensitivity;
 
                 new_rotation.x = new_rotation.x.clamp(-max_pitch, max_pitch);
 
-                self.renderer.active_camera.set_rotation(new_rotation);
+                self.camera.write().unwrap()
+                    .set_rotation(new_rotation);
                 moved = true;
             }
         }
@@ -82,9 +119,20 @@ impl Viewport {
 
 impl Default for Viewport {
     fn default() -> Self {
+        let camera =  Arc::new(RwLock::new(
+            PinholeCamera::new(
+                Vec3::ZERO, 
+                Vec3::ZERO,
+                35.0,
+                55.0,
+                [0,0]
+            )
+        ));
+        let mut renderer = RayTracer::new();
+        renderer.set_active_camera(camera.clone());
         Self {
-            camera : PinholeCamera::default(),
-            renderer : RayTracer::default(),
+            camera : camera,
+            renderer : renderer,
             scene: Scene::get_example_scene()
         }
     }

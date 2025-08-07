@@ -116,53 +116,35 @@ impl App {
                                 viewport_size[1] as u32);
                     });
 
-                    let mut focal_length = self.viewport.renderer.active_camera.focal_length;
+                    let camera = self.viewport.camera.read().unwrap();
+
+                    let mut focal_length = camera.focal_length;
+                    let mut sensor_size = camera.sensor_size;
+                    drop(camera);
+
                     if imgui::Drag::new("Focal Length")
                         .build(ui, &mut focal_length) && focal_length > 0.0  {
-                        self.viewport.renderer.active_camera.set_focal_length(focal_length);
+                        self.viewport.camera.write().unwrap()
+                            .set_focal_length(focal_length);
                         self.viewport.renderer.render(&self.viewport.scene,
                             viewport_size[0] as u32,
                             viewport_size[1] as u32);
                     }
 
-                    let mut sensor_size = self.viewport.renderer.active_camera.sensor_size;
+                    let camera = self.viewport.camera.read().unwrap();
+
                     if imgui::Drag::new("Sensor Size")
                         .build(ui, &mut sensor_size) && sensor_size > 0.0 {
-                            self.viewport.renderer.active_camera.set_sensor_size(sensor_size);
+                            self.viewport.camera.write().unwrap()
+                                .set_sensor_size(sensor_size);
                             self.viewport.renderer.render(&self.viewport.scene,
                                 viewport_size[0] as u32,
                                 viewport_size[1] as u32);
                     }
+                    drop(camera);
                 });
-
-            ui.window("Scene Settings")
-                .size([300.0, 400.0], imgui::Condition::FirstUseEver)
-                .position([200.0, 500.0], imgui::Condition::FirstUseEver)
-                .build(||{
-                    for i in 0..self.viewport.scene.spheres.len() {
-                        let _id = ui.push_id_usize(i);
-
-                        ui.input_float3("Position", &mut self.viewport.scene.spheres[i].position)
-                            .build().then(|| {
-                                self.viewport.renderer.render(&self.viewport.scene,
-                                    viewport_size[0] as u32,
-                                    viewport_size[1] as u32);
-                            });
-                        ui.input_float("Radius", &mut self.viewport.scene.spheres[i].radius)
-                            .build().then(|| {
-                                self.viewport.renderer.render(&self.viewport.scene,
-                                    viewport_size[0] as u32,
-                                    viewport_size[1] as u32);
-                            });
-                        ui.color_edit3("Albedo", &mut self.viewport.scene.spheres[i].albedo)
-                            .then(|| {
-                                self.viewport.renderer.render(&self.viewport.scene,
-                                    viewport_size[0] as u32,
-                                    viewport_size[1] as u32);
-                            });
-                    }
-                });
-
+            
+            self.viewport.draw_scene_setting_window(&ui, &viewport_size);
         }
 
         let mut encoder = window

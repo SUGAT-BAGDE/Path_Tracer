@@ -69,7 +69,7 @@ impl AppWindow {
 
         let imgui = None;
 
-        return Self {
+        Self {
             window,
             imgui,
             device,
@@ -77,7 +77,7 @@ impl AppWindow {
             surface_desc,
             hidpi_factor,
             surface,
-        };
+        }
     }
 
     fn setup_imgui(&mut self) {
@@ -129,7 +129,7 @@ impl AppWindow {
         let mut window = Self::setup_gpu(event_loop);
         window.setup_imgui();
 
-        return window;
+        window
     }
 }
 

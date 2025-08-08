@@ -1,0 +1,11 @@
+[package]
+name = "insploray"
+version = "0.1.0-dev"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1.23.1", features = ["derive"] }
+glam = { version = "0.30.4", features = ["mint"] }
+pollster = "0.4.0"
+rand = "0.9.1"
+

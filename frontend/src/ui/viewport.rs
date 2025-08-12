@@ -7,6 +7,7 @@ use insploray::renderer::RayTracer;
 use insploray::scene::Scene;
 use insploray::camera::Camera;
 use insploray::camera::PinholeCamera;
+use insploray::scene::Sphere;
 use insploray::Vec3;
 
 pub struct Viewport {
@@ -31,6 +32,16 @@ impl Viewport {
                     update |= ui.input_float("Radius", &mut self.scene.spheres[i].radius)
                         .build();
                     update |= ui.color_edit3("Albedo", &mut self.scene.spheres[i].albedo);
+                }
+
+                if ui.button("Add sphere") {
+                    let sphere = Sphere{
+                        position : Vec3::ZERO,
+                        radius : 1.0,
+                        albedo : Vec3::ONE,
+                    };
+                    self.scene.spheres.push(sphere);
+                    update |= true;
                 }
             });
 
@@ -119,17 +130,20 @@ impl Viewport {
 
 impl Default for Viewport {
     fn default() -> Self {
+        let position =Vec3::new(0.0, 0.0, 2.0);
         let camera =  Arc::new(RwLock::new(
             PinholeCamera::new(
-                Vec3::ZERO, 
+                position, 
                 Vec3::ZERO,
                 35.0,
                 55.0,
                 [0,0]
             )
         ));
+
         let mut renderer = RayTracer::new();
         renderer.set_active_camera(camera.clone());
+
         Self {
             camera : camera,
             renderer : renderer,

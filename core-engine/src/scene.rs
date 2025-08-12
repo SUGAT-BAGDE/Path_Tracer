@@ -30,7 +30,7 @@ impl Scene {
             let sphere = Sphere{
                 position : Vec3::new(-1.0, 0.0, -5.0),
                 radius : 2.0,
-                albedo : Vec3::new(0.0, 0.0, 1.0)
+                albedo : Vec3::new(0.2, 0.3, 1.0)
             };
             scene.spheres.push(sphere);
         }

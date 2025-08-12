@@ -117,7 +117,6 @@ impl App {
                     });
 
                     let camera = self.viewport.camera.read().unwrap();
-
                     let mut focal_length = camera.focal_length;
                     let mut sensor_size = camera.sensor_size;
                     drop(camera);
@@ -131,8 +130,6 @@ impl App {
                             viewport_size[1] as u32);
                     }
 
-                    let camera = self.viewport.camera.read().unwrap();
-
                     if imgui::Drag::new("Sensor Size")
                         .build(ui, &mut sensor_size) && sensor_size > 0.0 {
                             self.viewport.camera.write().unwrap()
@@ -141,7 +138,6 @@ impl App {
                                 viewport_size[0] as u32,
                                 viewport_size[1] as u32);
                     }
-                    drop(camera);
                 });
             
             self.viewport.draw_scene_setting_window(&ui, &viewport_size);

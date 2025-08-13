@@ -4,6 +4,7 @@ use std::sync::RwLock;
 use imgui::Ui;
 
 use insploray::renderer::RayTracer;
+use insploray::scene::Matrial;
 use insploray::scene::Scene;
 use insploray::camera::Camera;
 use insploray::camera::PinholeCamera;
@@ -29,20 +30,49 @@ impl Viewport {
 
                     update |= ui.input_float3("Position", &mut self.scene.spheres[i].position)
                         .build();
-                    update |= ui.input_float("Radius", &mut self.scene.spheres[i].radius)
-                        .build();
-                    update |= ui.color_edit3("Albedo", &mut self.scene.spheres[i].albedo);
+                    update |= imgui::Drag::new("Radius").range(0.0, f32::MAX)
+                        .speed(0.05)
+                        .build(ui, &mut self.scene.spheres[0].radius);
+                    update |= imgui::Drag::new("Material")
+                        .range(-1, self.scene.materials.len() as i32 - 1)
+                        .build(ui, &mut self.scene.spheres[0].material_id);
+
+                    ui.separator();
                 }
 
                 if ui.button("Add sphere") {
                     let sphere = Sphere{
                         position : Vec3::ZERO,
                         radius : 1.0,
-                        albedo : Vec3::ONE,
+                        material_id : -1, 
                     };
                     self.scene.spheres.push(sphere);
                     update |= true;
                 }
+                ui.separator();
+                ui.separator();
+
+                for i in 0..self.scene.materials.len() {
+                    let _id = ui.push_id_usize(i);
+
+                    update |= ui.color_edit3("Albedo", &mut self.scene.materials[i].albedo);
+                    update |= imgui::Drag::new("Roughness").range(0.0, 1.0)
+                        .speed(0.005)
+                        .build(ui, &mut self.scene.materials[i].roughness);
+                    update |= imgui::Drag::new("Metalic").range(0.0, 1.0)
+                        .speed(0.005)
+                        .build(ui, &mut self.scene.materials[i].metalic);
+
+                    ui.separator();
+                }
+
+                if ui.button("Add Materal") {
+                    let material = Matrial::default();
+                    self.scene.materials.push(material);
+                    update |= true;
+                }
+
+                update |= ui.color_edit3("Sky color", &mut self.scene.sky_color);
             });
 
         if update {

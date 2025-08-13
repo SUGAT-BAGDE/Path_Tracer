@@ -5,9 +5,16 @@ use glam::{usize, Vec3, Vec4};
 
 use crate::camera::PinholeCamera;
 use crate::camera::Camera;
-use crate::scene::{Scene, Sphere};
+use crate::sampler::Sampler;
+use crate::scene::{Matrial, Scene};
 use crate::Ray;
 use crate::utils::convert_to_argb;
+
+static DEFAULT_MATERIAL : Matrial = Matrial {
+    albedo : Vec3::ONE,
+    roughness : 0.5,
+    metalic : 0.0
+};
 
 pub struct RayTracer {
     width: u32,
@@ -17,6 +24,8 @@ pub struct RayTracer {
 
     pub active_camera: Arc<RwLock<dyn Camera>>,
     // pub scene : Arc<Scene>
+
+    sampler : Sampler,
 }
 
 #[derive(Default, Debug)]
@@ -44,6 +53,8 @@ impl RayTracer {
             frame_buffer: vec![],
             active_camera : Arc::new(RwLock::new(camera)),
             last_render_time: Duration::from_secs(0),
+
+            sampler : Sampler::new(),
         }
     }
 
@@ -98,13 +109,13 @@ impl RayTracer {
         self.last_render_time = render_start_time.elapsed();
     }
 
-    fn per_pixel(&self, scene: &Scene, x : u32, y : u32) -> Vec4 /* returns color */  {
+    fn per_pixel(&mut self, scene: &Scene, x : u32, y : u32) -> Vec4 /* returns color */  {
         let cam = self.active_camera.read().unwrap();
         let mut ray = cam.get_ray(x, y);
         drop(cam);
 
         let mut color = Vec3::ZERO;
-        let bounces = 2;
+        let bounces = 5;
 
         let mut mutliplier = 1.0;
         for _ in 0..bounces {
@@ -115,23 +126,31 @@ impl RayTracer {
 
                 let light_origin = Vec3::new(-2.0, 1.0, 2.0);
                 let light_direction = (Vec3::ZERO - light_origin).normalize();
+                // let light_direction =Vec3::from((-1.0, -1.0, -1.0)).normalize();
 
                 let radiance = payload.world_normal.dot(-light_direction).max(0.0);
                 let sphere = scene.spheres.get(i).unwrap();
 
-                color += sphere.albedo * radiance * mutliplier;
+                let material = if sphere.material_id < 0 {
+                    &DEFAULT_MATERIAL
+                } else {
+                    scene.materials.get(i).unwrap()
+                }; 
+
+                color += material.albedo * radiance * mutliplier;
 
                 ray.origin = payload.world_position + payload.world_normal * f32::EPSILON;
-                ray.direction = ray.direction.reflect(payload.world_normal);
-                mutliplier *= 0.5;
+                ray.direction = ray.direction.reflect(
+                    (payload.world_normal + material.roughness * self.sampler.next_3d())
+                        .normalize()
+                );
             }
             else {
-                // let sky_color = rec4::ONE;
-                color += Vec3::ZERO * mutliplier;
                 // sky box, or something
+                color += scene.sky_color * mutliplier;
                 break;
             }
-
+            mutliplier *= 0.5;
         }
         Vec4::from((color, 1.0))
     }

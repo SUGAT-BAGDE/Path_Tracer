@@ -1,7 +1,7 @@
 use glam::{Mat4, Vec2, Vec3, Vec4Swizzles};
 
 use crate::{Ray};
-pub use crate::camera::Camera;
+pub use super::Camera;
 
 #[derive(Debug, Default)]
 pub struct PinholeCamera {

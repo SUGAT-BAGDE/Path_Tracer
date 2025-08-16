@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use glam::{Vec3, Vec4};
+use glam::{Vec3};
 
 use crate::accumulator::Accumulator;
 use crate::cameras::PinholeCamera;
@@ -36,8 +36,8 @@ impl RayTracer {
             );
 
         let integrator = Integrator {
-            bounces : 10,
-            max_compulsory_bounces : 5
+            bounces : 5,
+            max_compulsory_bounces : 2
         };
 
         Self {
@@ -75,6 +75,7 @@ impl RayTracer {
 
         let mut cam = self.active_camera.write().unwrap();
         cam.set_image_resolutions(size);
+        drop(cam);
     }
 
     pub fn render(&mut self, scene: &Scene, width: u32, height: u32, acc : bool) {
@@ -82,32 +83,26 @@ impl RayTracer {
 
         self.set_size([width, height]);
         if !acc {
-            self.accumulator = Accumulator::new(width, width);
+            self.accumulator = Accumulator::new(width, height);
         }
 
         self.frame_buffer = vec![0xFF000000_u32; (width * height) as usize];
-
-        // let mut accumulator = Accumulator::new(width, height);
+        
+        // init thread local accumulator
+        let mut accumulator = Accumulator::new(width, height);
         let mut sampler = Sampler::new();
         for y in 0..height {
             for x in 0..width {
 
                 let color = self.integrator
                     .compute_incomming_radience(scene, x, y, &self.active_camera, &mut sampler);
-                    // .powf(1.0/2.2)
-                    // .clamp(Vec4::ZERO, Vec4::ONE);
 
-                // self.accumulator.accumulate(x, y, color);
-                self.accumulator.accumulate(x, y, color);
+                accumulator.accumulate(x, y, color);
                 self.frame_buffer[(y * width + x) as usize] = self.accumulator.get_color_argb(x, y);
-                // self.frame_buffer[(y * width + x) as usize] = convert_to_argb(
-                //     &self.accumulator.get_pixel_color(x, y)
-                // );
             }
         }
 
-        // self.accumulator = Accumulator::merge(&self.accumulator, &accumulator);
-        // drop(accumulator);
+        self.accumulator.merge(accumulator);
 
         self.last_render_time = render_start_time.elapsed();
     }

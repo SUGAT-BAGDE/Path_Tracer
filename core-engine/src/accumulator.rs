@@ -35,7 +35,7 @@ impl Accumulator {
         self.sample_counts[index] += 1;
     }
 
-    pub fn get_pixel_color(&self, x: u32, y: u32) -> Vec4 {
+    pub fn get_pixel_radiaence(&self, x: u32, y: u32) -> Vec4 {
         debug_assert!(x < self.width && y < self.height, "Pixel out of bounds");
 
         let index = (y * self.width + x) as usize;
@@ -87,29 +87,16 @@ impl Accumulator {
     }
 
     /// Merges two accumulators by summing corresponding pixels and sample counts.
-    pub fn merge(a: &Self, b: &Self) -> Self {
-        assert_eq!(a.width, b.width, "Widths do not match");
-        assert_eq!(a.height, b.height, "Heights do not match");
+    pub fn merge(&mut self, b: Self) {
+        assert_eq!(self.width, b.width, "Widths do not match: \nself.width = {:?}\nb.width = {:?}", self.width, b.width);
+        assert_eq!(self.height, b.height, "Heights do not match: \nself.height = {:?}\nb.height = {:?}", self.height, b.height);
 
-        let framebuffer = a
-            .framebuffer
-            .iter()
-            .zip(&b.framebuffer)
-            .map(|(c1, c2)| c1 + c2)
-            .collect();
+        for (c1, c2) in self.framebuffer.iter_mut().zip(b.framebuffer) {
+            *c1 += c2;
+        }
 
-        let sample_counts = a
-            .sample_counts
-            .iter()
-            .zip(&b.sample_counts)
-            .map(|(s1, s2)| s1 + s2)
-            .collect();
-
-        Self {
-            width: a.width,
-            height: a.height,
-            framebuffer,
-            sample_counts,
+        for (s1, s2) in self.sample_counts.iter_mut().zip(b.sample_counts) {
+            *s1 += s2;
         }
     }
 }

@@ -1,9 +1,11 @@
-pub mod camera;
+pub(crate) mod ray;
 pub mod renderer;
 pub(crate) mod utils;
-pub(crate) mod ray;
-pub mod scene;
 pub(crate) mod sampler;
+pub(crate) mod accumulator;
+pub(crate) mod integrator;
+pub mod cameras;
+pub mod scene;
 
 use ray::Ray;
 

@@ -113,7 +113,9 @@ impl App {
                         self.viewport.renderer
                             .render(&self.viewport.scene,
                                 viewport_size[0] as u32,
-                                viewport_size[1] as u32);
+                                viewport_size[1] as u32,
+                                false
+                            );
                     });
 
                     let camera = self.viewport.camera.read().unwrap();
@@ -127,16 +129,20 @@ impl App {
                             .set_focal_length(focal_length);
                         self.viewport.renderer.render(&self.viewport.scene,
                             viewport_size[0] as u32,
-                            viewport_size[1] as u32);
+                            viewport_size[1] as u32,
+                            false
+                        );
                     }
 
                     if imgui::Drag::new("Sensor Size")
                         .build(ui, &mut sensor_size) && sensor_size > 0.0 {
-                            self.viewport.camera.write().unwrap()
-                                .set_sensor_size(sensor_size);
-                            self.viewport.renderer.render(&self.viewport.scene,
-                                viewport_size[0] as u32,
-                                viewport_size[1] as u32);
+                        self.viewport.camera.write().unwrap()
+                            .set_sensor_size(sensor_size);
+                        self.viewport.renderer.render(&self.viewport.scene,
+                            viewport_size[0] as u32,
+                            viewport_size[1] as u32,
+                            false
+                        );
                     }
                 });
             

@@ -6,8 +6,8 @@ use imgui::Ui;
 use insploray::renderer::RayTracer;
 use insploray::scene::Matrial;
 use insploray::scene::Scene;
-use insploray::camera::Camera;
-use insploray::camera::PinholeCamera;
+use insploray::cameras::Camera;
+use insploray::cameras::PinholeCamera;
 use insploray::scene::Sphere;
 use insploray::Vec3;
 
@@ -32,10 +32,10 @@ impl Viewport {
                         .build();
                     update |= imgui::Drag::new("Radius").range(0.0, f32::MAX)
                         .speed(0.05)
-                        .build(ui, &mut self.scene.spheres[0].radius);
+                        .build(ui, &mut self.scene.spheres[i].radius);
                     update |= imgui::Drag::new("Material")
                         .range(-1, self.scene.materials.len() as i32 - 1)
-                        .build(ui, &mut self.scene.spheres[0].material_id);
+                        .build(ui, &mut self.scene.spheres[i].material_id);
 
                     ui.separator();
                 }
@@ -62,6 +62,9 @@ impl Viewport {
                     update |= imgui::Drag::new("Metalic").range(0.0, 1.0)
                         .speed(0.005)
                         .build(ui, &mut self.scene.materials[i].metalic);
+                    update |= ui.color_edit3("Emission Color", &mut self.scene.materials[i].emission_color);
+                    update |= imgui::Drag::new("Emissive Power").range(0.0, 1.0)
+                        .build(ui, &mut self.scene.materials[i].emissive_power);
 
                     ui.separator();
                 }
@@ -72,13 +75,15 @@ impl Viewport {
                     update |= true;
                 }
 
-                update |= ui.color_edit3("Sky color", &mut self.scene.sky_color);
+                update |= ui.color_edit3("Sky color", &mut self.scene.default_sky_color);
             });
 
         if update {
             self.renderer.render(&self.scene,
                 viewport_size[0] as u32,
-                viewport_size[1] as u32);
+                viewport_size[1] as u32,
+                false
+            );
         }
         
     }
@@ -149,7 +154,8 @@ impl Viewport {
                 .render(
                     &self.scene,
                     width, 
-                    height
+                    height,
+                    false
                 );
         }
 
@@ -171,7 +177,7 @@ impl Default for Viewport {
             )
         ));
 
-        let mut renderer = RayTracer::new();
+        let mut renderer = RayTracer::new(0, 0);
         renderer.set_active_camera(camera.clone());
 
         Self {

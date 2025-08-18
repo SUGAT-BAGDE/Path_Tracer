@@ -1,4 +1,5 @@
 use glam::{Vec4};
+use rand::rand_core::le;
 
 use crate::utils::convert_to_argb;
 
@@ -7,7 +8,7 @@ pub struct Accumulator {
     width : u32,
     height : u32,
     pub framebuffer : Vec<Vec4>,
-    pub sample_counts : Vec<u32>
+    pub sample_counts : Vec<u32>,
 }
 
 impl Accumulator {
@@ -35,7 +36,7 @@ impl Accumulator {
         self.sample_counts[index] += 1;
     }
 
-    pub fn get_pixel_radiaence(&self, x: u32, y: u32) -> Vec4 {
+    pub fn _get_pixel_radiaence(&self, x: u32, y: u32) -> Vec4 {
         debug_assert!(x < self.width && y < self.height, "Pixel out of bounds");
 
         let index = (y * self.width + x) as usize;
@@ -45,10 +46,7 @@ impl Accumulator {
         color / samples as f32
     }
 
-    pub fn get_color_argb(&self, x: u32, y: u32) -> u32 {
-        debug_assert!(x < self.width && y < self.height, "Pixel out of bounds");
-
-        let index = (y * self.width + x) as usize;
+    pub fn get_argb_pixel(&self, index : usize) -> u32 {
         let color = self.framebuffer[index];
         let samples = self.sample_counts[index].max(1);
 
@@ -71,19 +69,11 @@ impl Accumulator {
         convert_to_argb(&averaged)
     }
 
-    pub fn to_image_buffer(&self) -> Vec<u32> {
-        self.framebuffer
-            .iter()
-            .zip(&self.sample_counts)
-            .map(|(color, &samples)| {
-                if samples > 0 {
-                    let avg_color = *color / samples as f32;
-                    convert_to_argb(&avg_color)
-                } else {
-                    convert_to_argb(&Vec4::ZERO) // black if no samples
-                }
-            })
-            .collect()
+    #[inline]
+    pub fn get_color_argb(&self, x: u32, y: u32) -> u32 {
+        debug_assert!(x < self.width && y < self.height, "Pixel out of bounds");
+
+        self.get_argb_pixel((y * self.width + x) as usize)
     }
 
     /// Merges two accumulators by summing corresponding pixels and sample counts.
@@ -98,5 +88,16 @@ impl Accumulator {
         for (s1, s2) in self.sample_counts.iter_mut().zip(b.sample_counts) {
             *s1 += s2;
         }
+    }
+
+    pub fn write_to_image_buffer(&self, buffer : &mut Vec<u32>) {
+        if buffer.len() != self.framebuffer.len() {
+            *buffer = vec![0xFF000000_u32; self.framebuffer.len()]
+        };
+        
+
+        buffer.iter_mut().enumerate().for_each(|(i, pixel)| {
+            *pixel = self.get_argb_pixel(i);
+        });
     }
 }

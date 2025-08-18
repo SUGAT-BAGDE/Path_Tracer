@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use glam::Vec3;
 
 use crate::ray::Ray;
@@ -12,5 +14,8 @@ pub trait Camera {
     fn on_update(&mut self);
 }
 
+pub type SharedCamera = Arc<RwLock<dyn Camera + Send + Sync>>;
+
 pub mod pinhole_camera;
 pub use pinhole_camera::PinholeCamera;
+    

@@ -15,7 +15,7 @@ fn transform_local_to_world(local_dir : Vec3, normal : Vec3) -> Vec3{
     let tangent = up.cross(normal).normalize();
     let bitangent = normal.cross(tangent);
     
-    return local_dir.x * tangent + local_dir.y * bitangent + local_dir.z * normal;
+    local_dir.x * tangent + local_dir.y * bitangent + local_dir.z * normal
 }
 
 

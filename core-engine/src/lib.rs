@@ -1,4 +1,5 @@
 pub(crate) mod ray;
+pub(crate) mod concurrency;
 pub mod renderer;
 pub(crate) mod utils;
 pub(crate) mod sampler;

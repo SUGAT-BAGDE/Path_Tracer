@@ -105,8 +105,10 @@ impl Scene {
         };
         
         {
-            let mut material = Matrial::default();
-            material.albedo = Vec3::new(1.0, 0.0, 1.0);
+            let material = Matrial { 
+                albedo : Vec3::new(1.0, 0.0, 1.0),
+                ..Default::default()
+            };
             scene.materials.push(material);
 
             let sphere = Sphere{
@@ -118,8 +120,10 @@ impl Scene {
         }
 
         {
-            let mut material = Matrial::default();
-            material.albedo = Vec3::new(0.2, 0.3, 1.0);
+            let material = Matrial { 
+                albedo : Vec3::new(0.2, 0.3, 1.0),
+                ..Default::default()
+            };
             scene.materials.push(material);
 
             let sphere = Sphere{

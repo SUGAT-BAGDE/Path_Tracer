@@ -181,8 +181,8 @@ impl Default for Viewport {
         renderer.set_active_camera(camera.clone());
 
         Self {
-            camera : camera,
-            renderer : renderer,
+            camera,
+            renderer,
             scene: Scene::get_example_scene()
         }
     }

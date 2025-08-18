@@ -1,8 +1,6 @@
-use std::sync::{Arc, RwLock};
-
 use glam::{Vec3, Vec4};
 
-use crate::cameras::Camera;
+use crate::cameras::{SharedCamera};
 use crate::sampler::Sampler;
 use crate::scene::{Matrial, Scene};
 use crate::Ray;
@@ -36,7 +34,7 @@ impl Integrator {
         scene: &Scene,
         x : u32,
         y : u32,
-        camera : &Arc<RwLock<dyn Camera>>, 
+        camera : &SharedCamera, 
         sampler : &mut Sampler
     ) -> Vec4 /* returns color */  {
 
@@ -53,7 +51,7 @@ impl Integrator {
 
             if let Some(i) = payload.object_index {
 
-                let sphere = scene.spheres.get(i as usize).unwrap();
+                let sphere = scene.spheres.get(i).unwrap();
 
                 let material = if sphere.material_id < 0 {
                     &DEFAULT_MATERIAL

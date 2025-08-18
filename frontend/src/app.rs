@@ -84,9 +84,10 @@ impl App {
 
                     let [c_w, c_h] = self.viewport.renderer.get_current_size();
 
+                    let dimensions = self.viewport.renderer.get_current_size();
                     let texture_id = create_texture_from_pixels(
                         self.viewport.renderer.get_output(),
-                        self.viewport.renderer.get_current_size(),
+                        dimensions,
                         &window.device,
                         &window.queue,
                         &mut imgui.renderer,
@@ -146,7 +147,7 @@ impl App {
                     }
                 });
             
-            self.viewport.draw_scene_setting_window(&ui, &viewport_size);
+            self.viewport.draw_scene_setting_window(ui, &viewport_size);
         }
 
         let mut encoder = window

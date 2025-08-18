@@ -18,7 +18,8 @@ pub struct App {
     window: Option<AppWindow>,
     // viewport_renderer: RayTracer,
 
-    viewport : Viewport
+    viewport : Viewport,
+    first_buffer : bool
 }
 
 impl App {
@@ -79,8 +80,12 @@ impl App {
                         );
                     }
 
-                    self.viewport.renderer
-                        .prepare_pixels(&self.viewport.scene, width, height);
+                    // if !self.first_buffer {
+                        self.viewport.renderer
+                            .prepare_pixels(&self.viewport.scene, width, height);
+                        self.first_buffer = true;
+
+                    // }
 
                     let [c_w, c_h] = self.viewport.renderer.get_current_size();
 
@@ -128,10 +133,9 @@ impl App {
                         .build(ui, &mut focal_length) && focal_length > 0.0  {
                         self.viewport.camera.write().unwrap()
                             .set_focal_length(focal_length);
-                        self.viewport.renderer.render(&self.viewport.scene,
+                        self.viewport.renderer.render_updated(&self.viewport.scene,
                             viewport_size[0] as u32,
                             viewport_size[1] as u32,
-                            false
                         );
                     }
 
@@ -139,10 +143,9 @@ impl App {
                         .build(ui, &mut sensor_size) && sensor_size > 0.0 {
                         self.viewport.camera.write().unwrap()
                             .set_sensor_size(sensor_size);
-                        self.viewport.renderer.render(&self.viewport.scene,
+                        self.viewport.renderer.render_updated(&self.viewport.scene,
                             viewport_size[0] as u32,
                             viewport_size[1] as u32,
-                            false
                         );
                     }
                 });

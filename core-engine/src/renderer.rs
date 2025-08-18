@@ -1,15 +1,13 @@
 use std::sync::{Arc, RwLock};
-use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crossbeam::channel::Receiver;
 use glam::Vec3;
 
-use crate::accumulator::Accumulator;
+use crate::accumulators::{Accumulator, TileAccumulator};
 use crate::cameras::{PinholeCamera, SharedCamera};
 use crate::concurrency::Threadpool;
 use crate::integrator::Integrator;
-use crate::sampler::Sampler;
 use crate::scene::Scene;
 
 pub struct RayTracer {
@@ -23,8 +21,8 @@ pub struct RayTracer {
     integrator: Integrator,
     accumulator: Arc<RwLock<Accumulator>>,
     threadpool: Option<Threadpool>,
-    threadpool_result_rx: Option<Receiver<Accumulator>>,
-    merger_thread: Option<JoinHandle<()>>,
+    threadpool_result_rx: Option<Receiver<TileAccumulator>>,
+    // merger_thread: Option<JoinHandle<()>>,
 }
 
 impl RayTracer {
@@ -44,24 +42,7 @@ impl RayTracer {
         let accumulator = Accumulator::new(width, height);
         let shared_acc = Arc::new(RwLock::new(accumulator));
 
-        let (tp, result_rx) = Threadpool::new(3);
-        let accum = Arc::clone(&shared_acc);
-        let rx = result_rx.clone();
-        let merger = thread::spawn(move || {
-            loop {
-                match rx.recv() {
-                    Ok(result_acc) => {
-                        let mut acc = accum.write().unwrap();
-                        acc.merge(result_acc);
-                        drop(acc);
-                    }
-                    Err(e) => {
-                        println!("Error receiving accumulator: {:?}", e);
-                        break;
-                    }
-                }
-            }
-        });
+        let (tp, result_rx) = Threadpool::new(4);
 
         Self {
             width: 0,
@@ -74,7 +55,6 @@ impl RayTracer {
             integrator,
             threadpool: Some(tp),
             threadpool_result_rx: Some(result_rx),
-            merger_thread: Some(merger),
         }
     }
 
@@ -87,9 +67,15 @@ impl RayTracer {
     }
 
     #[inline]
-    pub fn prepare_pixels(&mut self, scene: &Scene, width: u32, height: u32) {
+    pub fn prepare_pixels(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32) {
         self.render(scene, width, height, true);
     }
+
+    #[inline]
+    pub fn render_updated(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32) {
+        self.render(scene, width, height, false);
+    }
+
 
     fn set_size(&mut self, size: [u32; 2]) {
         self.width = size[0];
@@ -106,7 +92,7 @@ impl RayTracer {
         drop(cam);
     }
 
-    pub fn render(&mut self, scene: &Scene, width: u32, height: u32, acc: bool) {
+    pub fn render(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32, acc: bool) {
         let render_start_time = Instant::now();
 
         self.set_size([width, height]);
@@ -116,26 +102,61 @@ impl RayTracer {
             drop(accum_guard);
         }
 
-        // init thread local accumulator
-        let mut accumulator = Accumulator::new(width, height);
-        let mut sampler = Sampler::new();
-        for y in 0..height {
-            for x in 0..width {
-                let color = self.integrator.compute_incomming_radience(
-                    scene,
-                    x,
-                    y,
-                    &self.active_camera,
-                    &mut sampler,
-                );
+        let tile_size = 64;
 
-                accumulator.accumulate(x, y, color);
+        let mut jobs_dispached = 0;
+        // init thread local accumulator
+        for tile_y in (0..height).step_by(tile_size as usize) {
+            for tile_x in (0..width).step_by(tile_size as usize) {
+                match &mut self.threadpool {
+                    Some(tp) => {
+                        let mut integrator = self.integrator.clone();
+                        let camera = Arc::clone(&self.active_camera);
+                        let local_scene = Arc::clone(scene);
+
+                        // Compute tile bounds
+                        let tile_width = (tile_size).min(width - tile_x);
+                        let tile_height = (tile_size).min(height - tile_y);
+
+                        tp.execute(move |sampler| {
+                            let scene_guard = local_scene.read().unwrap();
+                            let mut accumulator =
+                                TileAccumulator::new(tile_x, tile_y, tile_width, tile_height);
+
+                            for dy in 0..tile_height {
+                                for dx in 0..tile_width {
+                                    let x = tile_x + dx;
+                                    let y = tile_y + dy;
+
+                                    let color = integrator.compute_incomming_radience(
+                                        &scene_guard,
+                                        x,
+                                        y,
+                                        &camera,
+                                        sampler,
+                                    );
+
+                                    accumulator.accumulate(dx as u32, dy as u32, color);
+                                }
+                            }
+
+                            accumulator
+                        });
+                        jobs_dispached += 1;
+                    }
+                    None => (),
+                }
             }
         }
 
-        let mut acc_guard = self.accumulator.write().unwrap();
-        acc_guard.merge(accumulator);
-        drop(acc_guard);
+        for _ in 0..jobs_dispached {
+            let job_result = self.threadpool_result_rx.as_ref().unwrap().recv();
+            if let Ok(tile_acc) = job_result {
+                let mut acc_guard = self.accumulator.write().unwrap();
+                acc_guard.merge_tile(tile_acc);
+                drop(acc_guard);
+            }
+        }
 
         self.last_render_time = render_start_time.elapsed();
     }
@@ -165,9 +186,6 @@ impl Drop for RayTracer {
         }
         if let Some(rx) = self.threadpool_result_rx.take() {
             drop(rx);
-        }
-        if let Some(thread) = self.merger_thread.take() {
-            let _ = thread.join();
         }
     }
 }

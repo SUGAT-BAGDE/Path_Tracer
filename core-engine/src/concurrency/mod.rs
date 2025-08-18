@@ -1,7 +1,8 @@
-use crate::accumulator::Accumulator;
+use crate::accumulators::TileAccumulator;
 use crate::sampler::Sampler;
 
-type RenderJob = Box<dyn FnOnce(&mut Sampler) -> Accumulator + Send + 'static>;
+type RenderJob = Box<dyn FnOnce(&mut Sampler) -> TileAccumulator + Send + 'static>;
+type RenderJobResult = TileAccumulator;
 
 pub(crate) mod threadpool;
 pub(crate) mod worker;

@@ -1,43 +1,42 @@
 use glam::{Vec3, Vec4};
 
-use crate::cameras::{SharedCamera};
+use crate::Ray;
+use crate::cameras::SharedCamera;
 use crate::sampler::Sampler;
 use crate::scene::{Matrial, Scene};
-use crate::Ray;
 
-static DEFAULT_MATERIAL : Matrial = Matrial {
-    albedo : Vec3::ONE,
-    roughness : 0.5,
-    metalic : 0.0,
-    emission_color : Vec3::ZERO,
-    emissive_power : 0.0
+static DEFAULT_MATERIAL: Matrial = Matrial {
+    albedo: Vec3::ONE,
+    roughness: 0.5,
+    metalic: 0.0,
+    emission_color: Vec3::ZERO,
+    emissive_power: 0.0,
 };
 
+#[derive(Clone, Copy)]
 pub struct Integrator {
-    pub bounces : usize,
-    pub max_compulsory_bounces : usize
+    pub bounces: usize,
+    pub max_compulsory_bounces: usize,
 }
 
 #[derive(Default, Debug)]
 struct HitPayload {
-    hit_distance : f32,
-    world_position : Vec3,
-    world_normal : Vec3,
+    hit_distance: f32,
+    world_position: Vec3,
+    world_normal: Vec3,
 
-    object_index : Option<usize>,
+    object_index: Option<usize>,
 }
 
 impl Integrator {
-        
     pub fn compute_incomming_radience(
         &mut self,
         scene: &Scene,
-        x : u32,
-        y : u32,
-        camera : &SharedCamera, 
-        sampler : &mut Sampler
-    ) -> Vec4 /* returns color */  {
-
+        x: u32,
+        y: u32,
+        camera: &SharedCamera,
+        sampler: &mut Sampler,
+    ) -> Vec4 /* returns radiance per RGB channel */ {
         let cam = camera.read().unwrap();
         let mut ray = cam.get_ray(x, y);
         drop(cam);
@@ -46,20 +45,19 @@ impl Integrator {
 
         let mut contribution = Vec3::ONE;
         for bounce in 0..self.bounces {
-
             let payload = self.trace_ray(&ray, scene);
 
             if let Some(i) = payload.object_index {
-
                 let sphere = scene.spheres.get(i).unwrap();
 
                 let material = if sphere.material_id < 0 {
                     &DEFAULT_MATERIAL
                 } else {
-                    scene.materials
+                    scene
+                        .materials
                         .get(sphere.material_id as usize)
                         .unwrap_or(&DEFAULT_MATERIAL)
-                }; 
+                };
 
                 light += material.emission_color * material.emissive_power * contribution;
 
@@ -77,16 +75,15 @@ impl Integrator {
                         break;
                     }
                     contribution /= p;
-                } 
+                }
 
                 ray.origin = payload.world_position + payload.world_normal * f32::EPSILON;
                 ray.direction = wi;
-            }
-            else {
+            } else {
                 // sky box, or something
                 let sky_color = match &scene.skybox {
                     Some(exr) => exr.sample(ray.direction),
-                    None => scene.default_sky_color
+                    None => scene.default_sky_color,
                 };
                 light += sky_color * contribution;
                 break;
@@ -95,7 +92,7 @@ impl Integrator {
         Vec4::from((light, 1.0))
     }
 
-    fn trace_ray(&self, ray : &Ray, scene: &Scene) -> HitPayload {
+    fn trace_ray(&self, ray: &Ray, scene: &Scene) -> HitPayload {
         // (bx^2 + by^2 + bz^2)t^2 + 2(axbx + ayby + azbz)t + (ax^2 + ay^2 + az^2 - r^2)
         // a vec ray origin
         // b vec ray direction
@@ -104,10 +101,9 @@ impl Integrator {
 
         let mut hit_distance = f32::MAX;
         // let mut closest_sphere : Option<&Sphere> = None;
-        let mut closest_sphere : Option<usize> = None;
+        let mut closest_sphere: Option<usize> = None;
 
         for (i, sphere) in scene.spheres.iter().enumerate() {
-
             let origin = ray.origin - sphere.position;
 
             let a = ray.direction.dot(ray.direction);
@@ -132,19 +128,17 @@ impl Integrator {
 
         if let Some(sphere_index) = closest_sphere {
             self.closest_hit(scene, ray, hit_distance, sphere_index)
-        }       
-        else
-        {
+        } else {
             self.ray_miss(ray)
         }
     }
 
     fn closest_hit(
-        &self, 
-        scene : &Scene, 
-        ray : &Ray, 
-        hit_distance : f32,
-        object_index: usize
+        &self,
+        scene: &Scene,
+        ray: &Ray,
+        hit_distance: f32,
+        object_index: usize,
     ) -> HitPayload {
         let closest_sphere = scene.spheres.get(object_index).unwrap();
 
@@ -153,18 +147,18 @@ impl Integrator {
 
         let normal = hit_point.normalize();
 
-
         HitPayload {
             hit_distance: hit_distance,
             world_position: hit_point + closest_sphere.position,
             world_normal: normal,
-            object_index : Some(object_index)
+            object_index: Some(object_index),
         }
     }
 
-    fn ray_miss(&self, _ray : &Ray) -> HitPayload {
-        HitPayload { 
+    fn ray_miss(&self, _ray: &Ray) -> HitPayload {
+        HitPayload {
             hit_distance: -1.0,
+            object_index: None,
             ..Default::default()
         }
     }

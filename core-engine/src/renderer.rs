@@ -1,47 +1,64 @@
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use glam::{Vec3, Vec4};
+use crossbeam::channel::Receiver;
+use glam::Vec3;
 
-use crate::camera::PinholeCamera;
-use crate::camera::Camera;
-use crate::scene::{Scene, Sphere};
-use crate::Ray;
-use crate::utils::convert_to_argb;
+use crate::accumulators::{Accumulator, TileAccumulator};
+use crate::cameras::{PinholeCamera, SharedCamera};
+use crate::concurrency::Threadpool;
+use crate::integrator::Integrator;
+use crate::scene::Scene;
 
 pub struct RayTracer {
     width: u32,
     height: u32,
-    frame_buffer : Vec<u32>,
+    frame_buffer: Vec<u32>,
     last_render_time: Duration,
 
-    pub active_camera: Arc<RwLock<dyn Camera>>,
+    pub active_camera: SharedCamera,
+    // pub scene : Arc<Scene>
+    integrator: Integrator,
+    accumulator: Arc<RwLock<Accumulator>>,
+    threadpool: Option<Threadpool>,
+    threadpool_result_rx: Option<Receiver<TileAccumulator>>,
+    // merger_thread: Option<JoinHandle<()>>,
 }
 
 impl RayTracer {
-    pub fn new() -> Self {
-        let camera =  PinholeCamera::new(
-                Vec3::ZERO, 
-                Vec3::ZERO,
-                35.0,
-                55.0,
-                [0,0]
-            );
+    pub fn new(width: u32, height: u32) -> Self {
+        let camera = PinholeCamera::new(
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::ZERO,
+            35.0,
+            55.0,
+            [width, height],
+        );
 
-        let mut renderer = Self {
+        let integrator = Integrator {
+            bounces: 5,
+            max_compulsory_bounces: 2,
+        };
+        let accumulator = Accumulator::new(width, height);
+        let shared_acc = Arc::new(RwLock::new(accumulator));
+
+        let (tp, result_rx) = Threadpool::new(4);
+
+        Self {
             width: 0,
             height: 0,
             frame_buffer: vec![],
-            active_camera : Arc::new(RwLock::new(camera)),
+            active_camera: Arc::new(RwLock::new(camera)),
             last_render_time: Duration::from_secs(0),
-        };
+            accumulator: shared_acc,
 
-        renderer.init_scene();
-
-        renderer
+            integrator,
+            threadpool: Some(tp),
+            threadpool_result_rx: Some(result_rx),
+        }
     }
 
-    pub fn set_active_camera(&mut self, camera : Arc<RwLock<dyn Camera>>) {
+    pub fn set_active_camera(&mut self, camera: SharedCamera) {
         self.active_camera = camera;
     }
 
@@ -49,121 +66,106 @@ impl RayTracer {
         [self.width, self.height]
     }
 
-    pub fn prepare_pixels(&mut self, scene: &Scene, width: u32, height: u32) {
-        // if self.pixels.len() == 0 {
-        if self.frame_buffer.len() != (width * height) as usize
-            || self.width != width
-            || self.height != height
-        {
-            self.render(scene, width, height);
-        }
+    #[inline]
+    pub fn prepare_pixels(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32) {
+        self.render(scene, width, height, true);
     }
 
-    fn init_scene(&mut self) {
-        let mut cam = self.active_camera.write().unwrap();
-        (*cam).set_position( Vec3::new(0.0, 0.0, 2.0));
+    #[inline]
+    pub fn render_updated(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32) {
+        self.render(scene, width, height, false);
     }
+
 
     fn set_size(&mut self, size: [u32; 2]) {
         self.width = size[0];
         self.height = size[1];
+
+        let mut accum_guard = self.accumulator.write().unwrap();
+        if accum_guard.get_resolution() != size {
+            *accum_guard = Accumulator::new(size[0], size[1]);
+        }
+        drop(accum_guard);
+
         let mut cam = self.active_camera.write().unwrap();
-        (*cam).set_image_resolutions(size);
+        cam.set_image_resolutions(size);
+        drop(cam);
     }
 
-    pub fn render(&mut self, scene: &Scene, width: u32, height: u32) {
+    pub fn render(&mut self, scene: &Arc<RwLock<Scene>>, width: u32, height: u32, acc: bool) {
         let render_start_time = Instant::now();
 
         self.set_size([width, height]);
+        if !acc {
+            let mut accum_guard = self.accumulator.write().unwrap();
+            *accum_guard = Accumulator::new(width, height);
+            drop(accum_guard);
+        }
 
-        self.frame_buffer = vec![0xFFFFFFFF_u32; (width * height) as usize];
-        // let aspect_ratio = width as f32 / height as f32;
+        let tile_size = 64;
 
-        for y in 0..height {
-            for x in 0..width {
-                let cam = self.active_camera.read().unwrap();
+        let mut jobs_dispached = 0;
+        // init thread local accumulator
+        for tile_y in (0..height).step_by(tile_size as usize) {
+            for tile_x in (0..width).step_by(tile_size as usize) {
+                match &mut self.threadpool {
+                    Some(tp) => {
+                        let mut integrator = self.integrator.clone();
+                        let camera = Arc::clone(&self.active_camera);
+                        let local_scene = Arc::clone(scene);
 
-                let ray = (*cam).get_ray(x, y);
+                        // Compute tile bounds
+                        let tile_width = (tile_size).min(width - tile_x);
+                        let tile_height = (tile_size).min(height - tile_y);
 
-                let color = convert_to_argb(
-                    &Self::trace_ray(ray, scene)
-                        .clamp(
-                            Vec4::from((0.0, 0.0, 0.0, 0.0)),
-                            Vec4::from((1.0, 1.0, 1.0, 1.0))
-                        ),
-                );
+                        tp.execute(move |sampler| {
+                            let scene_guard = local_scene.read().unwrap();
+                            let mut accumulator =
+                                TileAccumulator::new(tile_x, tile_y, tile_width, tile_height);
 
-                self.frame_buffer[(y * width + x) as usize] = color;
+                            for dy in 0..tile_height {
+                                for dx in 0..tile_width {
+                                    let x = tile_x + dx;
+                                    let y = tile_y + dy;
+
+                                    let color = integrator.compute_incomming_radience(
+                                        &scene_guard,
+                                        x,
+                                        y,
+                                        &camera,
+                                        sampler,
+                                    );
+
+                                    accumulator.accumulate(dx as u32, dy as u32, color);
+                                }
+                            }
+
+                            accumulator
+                        });
+                        jobs_dispached += 1;
+                    }
+                    None => (),
+                }
+            }
+        }
+
+        for _ in 0..jobs_dispached {
+            let job_result = self.threadpool_result_rx.as_ref().unwrap().recv();
+            if let Ok(tile_acc) = job_result {
+                let mut acc_guard = self.accumulator.write().unwrap();
+                acc_guard.merge_tile(tile_acc);
+                drop(acc_guard);
             }
         }
 
         self.last_render_time = render_start_time.elapsed();
     }
 
-    fn trace_ray(ray : Ray, scene: &Scene) -> Vec4 /* returns color */ {
-        // (bx^2 + by^2 + bz^2)t^2 + 2(axbx + ayby + azbz)t + (ax^2 + ay^2 + az^2 - r^2)
-        // a vec ray origin
-        // b vec ray direction
-        // r radius
-        // t hit distance
-
-        if scene.spheres.is_empty() {
-            return Vec4::new(0.0, 0.0, 0.0, 1.0);
-        }
-
-        let mut hit_distance = f32::MAX;
-        let mut closest_sphere : Option<&Sphere> = None;
-
-        for sphere in scene.spheres.iter() {
-
-            let origin = ray.origin - sphere.position;
-
-            let a = ray.direction.dot(ray.direction);
-            let b = 2.0 * ray.direction.dot(origin);
-            let c = origin.dot(origin) - sphere.radius * sphere.radius;
-
-            let discriminant = b * b - 4.0 * a * c;
-
-            if discriminant < 0.0 {
-                continue;
-            }
-
-            let sqrt_d = discriminant.sqrt();
-
-            let closest_t = (-b - sqrt_d) / (2.0 * a);
-
-            if closest_t < 0.0 {
-                continue;
-            }
-
-            if closest_t < hit_distance {
-                closest_sphere = Some(sphere);
-                hit_distance = closest_t;
-            }
-        }
-
-        if let Some(sphere) = closest_sphere {
-            let light_origin = Vec3::new(-2.0, 1.0, 2.0);
-            let light_direction = (Vec3::ZERO - light_origin).normalize();
-
-            let origin = ray.origin - sphere.position;
-            let hit_point = origin + hit_distance * ray.direction;
-
-            let normal = hit_point.normalize();
-
-            let shading_factor = normal.dot(-light_direction).max(0.0);
-
-            // return Vec4::from(((normal * 0.5 + 0.5 ) * shading_factor, 1.0));
-            Vec4::from((sphere.albedo * shading_factor, 1.0))
-        }       
-        else
-        {
-            Vec4::new(0.0, 0.0, 0.0, 1.0)
-        }
-    }
-
-    pub fn get_output(&self) -> &[u32] {
-        self.frame_buffer.as_slice()
+    pub fn get_output(&mut self) -> &[u32] {
+        let accum_guard = self.accumulator.read().unwrap();
+        accum_guard.write_to_image_buffer(&mut self.frame_buffer);
+        drop(accum_guard);
+        &self.frame_buffer
     }
 
     pub fn get_last_render_time(&self) -> Duration {
@@ -173,7 +175,17 @@ impl RayTracer {
 
 impl Default for RayTracer {
     fn default() -> Self {
-        Self::new()
+        Self::new(0, 0)
     }
 }
 
+impl Drop for RayTracer {
+    fn drop(&mut self) {
+        if let Some(tp) = self.threadpool.take() {
+            drop(tp);
+        }
+        if let Some(rx) = self.threadpool_result_rx.take() {
+            drop(rx);
+        }
+    }
+}

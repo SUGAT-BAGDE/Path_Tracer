@@ -34,7 +34,7 @@ impl AppWindow {
             let version = env!("CARGO_PKG_VERSION");
 
             let attributes =
-                Window::default_attributes().with_title(format!("Sugat Path Tracer {version}"));
+                Window::default_attributes().with_title(format!("Insploray {version}"));
             Arc::new(event_loop.create_window(attributes).unwrap())
         };
 
@@ -121,7 +121,7 @@ impl AppWindow {
             last_cursor,
             last_frame,
             clear_color,
-            current_frame : None
+            current_frame: None,
         });
     }
 

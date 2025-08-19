@@ -5,41 +5,92 @@ use imgui::Ui;
 
 use insploray::renderer::RayTracer;
 use insploray::scene::Scene;
-use insploray::camera::Camera;
-use insploray::camera::PinholeCamera;
+use insploray::cameras::Camera;
+use insploray::cameras::PinholeCamera;
+use insploray::scene::{Sphere, Matrial};
 use insploray::Vec3;
 
 pub struct Viewport {
     pub renderer : RayTracer,
-    pub scene : Scene,
+    pub scene : Arc<RwLock<Scene>>,
     pub camera : Arc<RwLock<PinholeCamera>>
 }
 
 impl Viewport {
     pub fn draw_scene_setting_window(&mut self, ui : &Ui, viewport_size: &[f32; 2]) {
+        // /*
         let mut update = false;
+        if let Ok(mut scene) = self.scene.try_write() {
 
         ui.window("Scene Settings")
             .size([300.0, 400.0], imgui::Condition::FirstUseEver)
             .position([200.0, 500.0], imgui::Condition::FirstUseEver)
             .build(|| {
-                for i in 0..self.scene.spheres.len() {
+                for i in 0..scene.spheres.len() {
                     let _id = ui.push_id_usize(i);
 
-                    update |= ui.input_float3("Position", &mut self.scene.spheres[i].position)
+                    update |= ui.input_float3("Position", &mut scene.spheres[i].position)
                         .build();
-                    update |= ui.input_float("Radius", &mut self.scene.spheres[i].radius)
-                        .build();
-                    update |= ui.color_edit3("Albedo", &mut self.scene.spheres[i].albedo);
+                    update |= imgui::Drag::new("Radius").range(0.0, f32::MAX)
+                        .speed(0.05)
+                        .build(ui, &mut scene.spheres[i].radius);
+                    update |= imgui::Drag::new("Material")
+                        .range(-1, scene.materials.len() as i32 - 1)
+                        .build(ui, &mut scene.spheres[i].material_id);
+
+                    ui.separator();
                 }
+
+                if ui.button("Add sphere") {
+                    let sphere = Sphere{
+                        position : Vec3::ZERO,
+                        radius : 1.0,
+                        material_id : -1, 
+                    };
+                    scene.spheres.push(sphere);
+                    update |= true;
+                }
+                ui.separator();
+                ui.separator();
+
+                for i in 0..scene.materials.len() {
+                    let _id = ui.push_id_usize(i);
+
+                    update |= ui.color_edit3("Albedo", &mut scene.materials[i].albedo);
+                    update |= imgui::Drag::new("Roughness").range(0.0, 1.0)
+                        .speed(0.005)
+                        .build(ui, &mut scene.materials[i].roughness);
+                    update |= imgui::Drag::new("Metalic").range(0.0, 1.0)
+                        .speed(0.005)
+                        .build(ui, &mut scene.materials[i].metalic);
+                    update |= ui.color_edit3("Emission Color", &mut scene.materials[i].emission_color);
+                    update |= imgui::Drag::new("Emissive Power").range(0.0, 1.0)
+                        .build(ui, &mut scene.materials[i].emissive_power);
+
+                    ui.separator();
+                }
+
+                if ui.button("Add Materal") {
+                    let material = Matrial::default();
+                    scene.materials.push(material);
+                    update |= true;
+                }
+
+                update |= ui.color_edit3("Sky color", &mut scene.default_sky_color);
             });
+        drop(scene);
+        
 
         if update {
-            self.renderer.render(&self.scene,
+            self.renderer.render_updated(&self.scene,
                 viewport_size[0] as u32,
-                viewport_size[1] as u32);
+                viewport_size[1] as u32,
+            );
         }
-        
+    }
+        else {
+            println!("Skipping Scene Setting window in this frame!")
+        }
     }
 
     pub fn handle_input(
@@ -105,11 +156,7 @@ impl Viewport {
 
         if moved {
             self.renderer
-                .render(
-                    &self.scene,
-                    width, 
-                    height
-                );
+                .render_updated(&self.scene, width, height);
         }
 
     }
@@ -119,21 +166,25 @@ impl Viewport {
 
 impl Default for Viewport {
     fn default() -> Self {
+        let position =Vec3::new(0.0, 0.0, 2.0);
         let camera =  Arc::new(RwLock::new(
             PinholeCamera::new(
-                Vec3::ZERO, 
+                position, 
                 Vec3::ZERO,
                 35.0,
                 55.0,
                 [0,0]
             )
         ));
-        let mut renderer = RayTracer::new();
+
+        let mut renderer = RayTracer::new(0, 0);
         renderer.set_active_camera(camera.clone());
+        let scene = Arc::new(RwLock::new(Scene::get_example_scene()));
+
         Self {
-            camera : camera,
-            renderer : renderer,
-            scene: Scene::get_example_scene()
+            camera,
+            renderer,
+            scene
         }
     }
 }

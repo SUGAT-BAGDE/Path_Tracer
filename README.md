@@ -6,6 +6,10 @@ _InsploRay: Inspire(inspiration) + Explore(Exploration) + Ray Tracing_
 
 The primary goal of writing a path tracer was to get a head start before getting into low level systems programming, which now grew into a project of its own. It’s being designed with modularity in mind.
 
+## 🖥️ Demo
+
+![image](https://private-user-images.githubusercontent.com/79888221/479675877-1c3e619e-d447-460c-8f36-a5c4c889cb09.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTU2MzEwMTAsIm5iZiI6MTc1NTYzMDcxMCwicGF0aCI6Ii83OTg4ODIyMS80Nzk2NzU4NzctMWMzZTYxOWUtZDQ0Ny00NjBjLThmMzYtYTVjNGM4ODljYjA5LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTA4MTklMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwODE5VDE5MTE1MFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTllZGIxNGM1YTc0MzgxMGM2ZjEyNDdmMzM5YTY1ZmQ4ODVlNTE1ZDhjZDdmOTRlMTliNmExOWZmYTIwODY5MGMmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.ODAF9zOcaYGIeOgWQUmry1TS6KN97DgbPejEvyiLCz4)
+
 ## 🧩 Current Features:
 - Ray sphere intersection _(Only)_
 - Lambertian Diffuse _(Only)_
@@ -18,6 +22,7 @@ The primary goal of writing a path tracer was to get a head start before getting
     - Metalic _(planned, not yet implemented)_
     - Emissive Color
     - Emissive Strength
+- Basic Tone Mapping
 - More under way✨...
 
 🖼️ Frontend (Experimental not main focus of the project)
@@ -28,10 +33,6 @@ Though viewport and interactivity is not the primary goal. However, the frontend
 - Simple scene editor (currently supports spheres and materials only)
 
 ⚠️ _Limitations and caveats apply — see below._
-
-## 🖥️ Demo
-
-![image](https://github.com/user-attachments/assets/ecb49f98-b8eb-4236-b33e-d69209c7ad01)
 
 ## ⚙️ Installation and Usage
 
@@ -105,10 +106,11 @@ Order unknown because I am gonna join BTech soon within couple of days....
 
 ## License
 
-Licensed under [AGPLv3](./LISCENCE).  
+Licensed under [AGPLv3](./LICENSE).  
 For closed-source, commercial, SaaS, or academic use without attribution, please contact via Github Issues
 
 ## 👤 Author
 This project was started by me ([@libsugat](https://www.github.com/libsugat))
 — who knew **nothing** about rendering or graphics programming when it began!
+
 

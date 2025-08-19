@@ -5,6 +5,7 @@ pub(crate) mod ray;
 pub(crate) mod sampler;
 pub(crate) mod utils;
 
+pub mod file_formats;
 pub mod cameras;
 pub mod renderer;
 pub mod scene;

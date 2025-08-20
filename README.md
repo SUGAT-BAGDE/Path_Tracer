@@ -6,10 +6,6 @@ _InsploRay: Inspire(inspiration) + Explore(Exploration) + Ray Tracing_
 
 The primary goal of writing a path tracer was to get a head start before getting into low level systems programming, which now grew into a project of its own. It’s being designed with modularity in mind.
 
-## 🖥️ Demo
-
-![image](https://private-user-images.githubusercontent.com/79888221/479675877-1c3e619e-d447-460c-8f36-a5c4c889cb09.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NTU2MzEwMTAsIm5iZiI6MTc1NTYzMDcxMCwicGF0aCI6Ii83OTg4ODIyMS80Nzk2NzU4NzctMWMzZTYxOWUtZDQ0Ny00NjBjLThmMzYtYTVjNGM4ODljYjA5LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTA4MTklMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwODE5VDE5MTE1MFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTllZGIxNGM1YTc0MzgxMGM2ZjEyNDdmMzM5YTY1ZmQ4ODVlNTE1ZDhjZDdmOTRlMTliNmExOWZmYTIwODY5MGMmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.ODAF9zOcaYGIeOgWQUmry1TS6KN97DgbPejEvyiLCz4)
-
 ## 🧩 Current Features:
 - Ray sphere intersection _(Only)_
 - Lambertian Diffuse _(Only)_

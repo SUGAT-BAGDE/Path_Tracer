@@ -4,19 +4,36 @@ use std::sync::RwLock;
 use imgui::Ui;
 
 use insploray::renderer::RayTracer;
+use insploray::materials::Matrial;
+use insploray::geometry::Sphere;
 use insploray::scene::Scene;
 use insploray::cameras::Camera;
 use insploray::cameras::PinholeCamera;
-use insploray::scene::{Sphere, Matrial};
 use insploray::Vec3;
 
 pub struct Viewport {
+    dimensions : [u32; 2],
     pub renderer : RayTracer,
     pub scene : Arc<RwLock<Scene>>,
     pub camera : Arc<RwLock<PinholeCamera>>
 }
 
 impl Viewport {
+    pub fn set_dimensions(&mut self, width : u32, height : u32) {
+        self.dimensions = [width, height];
+        if self.renderer.get_current_size() != self.dimensions {
+            self.renderer.update(width, height);
+        }
+    }
+
+    pub fn prepare_buffer(&mut self) {
+        self.renderer.render(&self.scene);
+    }
+
+    pub fn get_buffer(&mut self) -> &[u32] {
+        self.renderer.get_output()
+    }
+
     pub fn draw_scene_setting_window(&mut self, ui : &Ui, viewport_size: &[f32; 2]) {
         // /*
         let mut update = false;
@@ -82,7 +99,7 @@ impl Viewport {
         
 
         if update {
-            self.renderer.render_updated(&self.scene,
+            self.renderer.update(
                 viewport_size[0] as u32,
                 viewport_size[1] as u32,
             );
@@ -155,8 +172,7 @@ impl Viewport {
         }
 
         if moved {
-            self.renderer
-                .render_updated(&self.scene, width, height);
+            self.renderer.update(width, height);
         }
 
     }
@@ -182,6 +198,7 @@ impl Default for Viewport {
         let scene = Arc::new(RwLock::new(Scene::get_example_scene()));
 
         Self {
+            dimensions: [0,0],
             camera,
             renderer,
             scene

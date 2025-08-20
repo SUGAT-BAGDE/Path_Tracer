@@ -3,7 +3,8 @@ use glam::{Vec3, Vec4};
 use crate::Ray;
 use crate::cameras::SharedCamera;
 use crate::sampler::Sampler;
-use crate::scene::{Matrial, Scene};
+use crate::scene::Scene;
+use crate::materials::Matrial;
 
 static DEFAULT_MATERIAL: Matrial = Matrial {
     albedo: Vec3::ONE,

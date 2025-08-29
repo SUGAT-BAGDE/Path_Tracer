@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use crossbeam::channel::Receiver;
-use glam::{bool, Vec3};
+use glam::Vec3;
 
 use crate::accumulators::{Accumulator, TileAccumulator};
 use crate::cameras::{PinholeCamera, SharedCamera};
@@ -22,7 +22,6 @@ pub struct RayTracer {
     accumulator: Arc<RwLock<Accumulator>>,
     threadpool: Option<Threadpool>,
     threadpool_result_rx: Option<Receiver<TileAccumulator>>,
-    // merger_thread: Option<JoinHandle<()>>,
 }
 
 impl RayTracer {
@@ -86,15 +85,20 @@ impl RayTracer {
         drop(cam);
     }
 
-
-    fn dispatch_tile_render_job(&mut self, scene: &Arc<RwLock<Scene>>, tile_size :u32, tile_x :u32, tile_y :u32) -> bool {
+    fn dispatch_tile_render_job(
+        &mut self,
+        scene: &Arc<RwLock<Scene>>,
+        tile_size: u32,
+        tile_x: u32,
+        tile_y: u32,
+    ) -> bool {
         let tp = match &mut self.threadpool {
             Some(threadpool) => threadpool,
             None => {
                 return false;
             }
         };
-        
+
         let mut integrator = self.integrator.clone();
         let camera = Arc::clone(&self.active_camera);
         let local_scene = Arc::clone(scene);
@@ -105,21 +109,15 @@ impl RayTracer {
 
         tp.execute(move |sampler| {
             let scene_guard = local_scene.read().unwrap();
-            let mut accumulator =
-            TileAccumulator::new(tile_x, tile_y, tile_width, tile_height);
+            let mut accumulator = TileAccumulator::new(tile_x, tile_y, tile_width, tile_height);
 
             for dy in 0..tile_height {
                 for dx in 0..tile_width {
                     let x = tile_x + dx;
                     let y = tile_y + dy;
 
-                    let color = integrator.compute_incomming_radience(
-                        &scene_guard,
-                        x,
-                        y,
-                        &camera,
-                        sampler,
-                    );
+                    let color =
+                        integrator.compute_incomming_radience(&scene_guard, x, y, &camera, sampler);
 
                     accumulator.accumulate(dx as u32, dy as u32, color);
                 }
@@ -139,7 +137,8 @@ impl RayTracer {
 
         for tile_y in (0..self.height).step_by(tile_size as usize) {
             for tile_x in (0..self.width).step_by(tile_size as usize) {
-                jobs_dispached += self.dispatch_tile_render_job(scene, tile_size, tile_x, tile_y) as u32;
+                jobs_dispached +=
+                    self.dispatch_tile_render_job(scene, tile_size, tile_x, tile_y) as u32;
             }
         }
 
@@ -155,7 +154,7 @@ impl RayTracer {
         self.last_render_time = render_start_time.elapsed();
     }
 
-    pub fn update(&mut self, width :u32, height: u32) {
+    pub fn update(&mut self, width: u32, height: u32) {
         self.set_size([width, height]);
         let mut accum_guard = self.accumulator.write().unwrap();
         *accum_guard = Accumulator::new(width, height);

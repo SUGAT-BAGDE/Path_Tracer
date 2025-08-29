@@ -1,4 +1,4 @@
-use glam::{Vec4, usize};
+use glam::{Vec4};
 
 use super::tile_buffer::TileAccumulator;
 use crate::utils::convert_to_argb;

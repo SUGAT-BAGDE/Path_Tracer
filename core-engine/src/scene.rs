@@ -2,12 +2,15 @@ use glam::Vec3;
 
 use crate::file_formats::ExrImage;
 
+use crate::geometry::triangle::Triangle;
 use crate::geometry::Sphere;
 use crate::materials::Matrial;
 
 #[derive(Default)]
 pub struct Scene {
     pub spheres: Vec<Sphere>,
+    pub triangles: Vec<Triangle>,
+
     pub materials: Vec<Matrial>,
     pub default_sky_color: Vec3,
 
@@ -31,6 +34,7 @@ impl Scene {
             default_sky_color: Vec3::new(0.6, 0.7, 0.9),
 
             skybox: exr_img.ok(),
+            ..Default::default()
         };
 
         {
@@ -42,26 +46,26 @@ impl Scene {
 
             let sphere = Sphere {
                 position: Vec3::new(0.0, 0.0, 0.0),
-                radius: 0.5,
+                radius: 1.0,
                 material_id: 0,
             };
             scene.spheres.push(sphere);
         }
 
-        {
-            let material = Matrial {
-                albedo: Vec3::new(0.2, 0.3, 1.0),
-                ..Default::default()
-            };
-            scene.materials.push(material);
+        // {
+        //     let material = Matrial {
+        //         albedo: Vec3::new(0.2, 0.3, 1.0),
+        //         ..Default::default()
+        //     };
+        //     scene.materials.push(material);
 
-            let sphere = Sphere {
-                position: Vec3::new(0.0, -100.5, 0.0),
-                radius: 100.0,
-                material_id: 1,
-            };
-            scene.spheres.push(sphere);
-        }
+        //     let sphere = Sphere {
+        //         position: Vec3::new(0.0, -100.5, 0.0),
+        //         radius: 100.0,
+        //         material_id: 1,
+        //     };
+        //     scene.spheres.push(sphere);
+        // }
 
         scene
     }

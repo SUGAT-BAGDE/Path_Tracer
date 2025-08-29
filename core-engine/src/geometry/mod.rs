@@ -2,44 +2,25 @@ use glam::Vec3;
 
 use crate::Ray;
 
-#[derive(Default)]
-pub struct IntersectionPaylaod {
-    t: f32, // intersection distance
-    positiion: Vec3,
-    normal: Vec3,
-    material_id: i32,
+#[derive(Default, Debug)]
+pub struct HitPayload {
+    pub hit_distance: f32,
+    pub world_position: Vec3,
+    pub world_normal: Vec3,
+
+    pub object_index: Option<usize>,
+    pub material_index: Option<usize>,
 }
 
-trait Geometry {
-    fn intersect_ray(&self, ray :Ray) -> IntersectionPaylaod;
+pub trait Geometry {
+    fn intersect_ray(&self, ray :&Ray) -> Option<HitPayload>;
 }
 
-pub struct Sphere {
-    pub position: Vec3,
-    pub radius: f32,
-    pub material_id: i32,
-}
+pub mod sphere;
+pub use sphere::Sphere;
 
-impl Geometry for Sphere {
-    fn intersect_ray(&self, ray :Ray) -> IntersectionPaylaod {
-        let origin = ray.origin - self.position;
+pub mod plane;
+pub use plane::Plane;
 
-        let a = ray.direction.dot(ray.direction);
-        let b = 2.0 * ray.direction.dot(origin);
-        let c = origin.dot(origin) - self.radius * self.radius;
-
-        let discriminant = b * b - 4.0 * a * c;
-
-        if discriminant < 0.0 {
-            // continue;
-            todo!()
-        }
-
-        let sqrt_d = discriminant.sqrt();
-
-        let _closest_t = (-b - sqrt_d) / (2.0 * a);
-        IntersectionPaylaod {
-            ..Default::default()
-        }
-    }
-}
+pub mod triangle;
+pub use triangle::Triangle;

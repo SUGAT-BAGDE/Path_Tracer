@@ -41,34 +41,30 @@ impl Geometry for Triangle {
 
         let phit = ray.origin + t * ray.direction;
 
-        // test with respect with v0
-        let egde_v0v1 = self.v1 - self.v0;
-        let egde_v0phit = phit - self.v0;
-        let dir_corresponding_to_v0 = egde_v0v1.cross(egde_v0phit);
+        let edges = [
+            (&self.v0, &self.v1, &self.v2), // for alpha
+            (&self.v1, &self.v2, &self.v0), // for beta
+            (&self.v2, &self.v0, &self.v1), // for gamma
+        ];
 
-        if self.normal.dot(dir_corresponding_to_v0) < 0.0 {
-            return None;
-        }
-        
-        // test with respect with v1
-        let egde_v1v2 = self.v2 - self.v1;
-        let egde_v1phit = phit - self.v1;
-        let dir_corresponding_to_v1 = egde_v1v2.cross(egde_v1phit);
+        let mut barycentric_coords = [0.0; 3];
 
-        if self.normal.dot(dir_corresponding_to_v1) < 0.0 {
-            return None;
-        }
+        for (i, (v_from, v_to, v_other)) in edges.into_iter().enumerate() {
+            let edge = v_to - v_from;
+            let to_phit = phit - v_from;
+            let cross = edge.cross(to_phit);
 
-        // test with respect with v1
-        let egde_v2v0 = self.v0 - self.v2;
-        let egde_v2phit = phit - self.v2;
-        let dir_corresponding_to_v2 = egde_v2v0.cross(egde_v2phit);
+            if self.normal.dot(cross) < 0.0 {
+                return None;
+            }
 
-        if self.normal.dot(dir_corresponding_to_v2) < 0.0 {
-            return None;
+            let full_area = edge.cross(v_other - v_from).length();
+            barycentric_coords[i] = cross.length() / full_area;
         }
 
-        // TODO: Barycentric coorinate
+        let _alpha = barycentric_coords[0];
+        let _beta  = barycentric_coords[1];
+        let _gamma  = barycentric_coords[2];
 
         let material = if self.material_id < 0 {
             None
@@ -89,5 +85,3 @@ impl Geometry for Triangle {
         )
     }
 }
-
-// pub struct AreaTestTriangle(Triangle);
